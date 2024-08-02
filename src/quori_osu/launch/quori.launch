@@ -13,6 +13,6 @@
     <include file="$(find quori_launch)/launch/mapping.launch" />
     
     <!-- Launch RViz with the specified configuration file -->
-  <node name="rviz" pkg="rviz" type="rviz" args="-d /opt/quori/src/quori_osu/launch/quori.rviz" />o
+    <node name="rviz" pkg="rviz" type="rviz" args="-d /opt/quori/src/quori_osu/launch/quori.rviz" />
 
 </launch>

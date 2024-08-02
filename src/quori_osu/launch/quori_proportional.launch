@@ -1,0 +1,30 @@
+<launch>
+
+    <!-- Start a publisher node, takes in base_scan and filters it and published filtered_scan. -->
+    <include file="$(find quori_controller)/launch/quori_control_holo.launch" />
+    
+    <!-- Start the camera nodes -->
+    <include file="$(find astra_ros)/launch/default.launch" />    
+    
+    <!-- Start the mapping node -->
+    <include file="$(find quori_launch)/launch/mapping.launch" />
+
+    <!-- Launch RViz with the specified configuration file -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d /opt/quori/src/quori_osu/launch/quori.rviz" />
+
+    <node pkg="quori_osu" type="drive_to_xy_node.py" name="drive_to_xy_node" output="screen"/>
+
+    <node pkg="quori_osu" type="error_monitoring.py" name="error_monitoring" output="screen" />
+
+    <!-- This helps with troubleshooting the joints individually (remove the space inbetween the dashes by standalone)-->
+    <!-- <node pkg="rqt_gui" type="rqt_gui" name="rqt_gui" args="- -standalone rqt_joint_trajectory_controller" />  -->
+    
+    <!-- Legacy Nodes/Launches -->
+    <!-- <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" /> -->
+    <!-- <include file="$(find quori_teleop)/launch/quori_teleop.launch" /> -->
+    <!-- <include file="$(find rplidar_ros)/launch/rplidar.launch" /> -->
+
+    <!-- This changes the speakers so its commented out for the Q&A study (Matt Miller) -->
+    <!-- <include file="$(find respeaker_ros)/launch/sample_respeaker.launch" /> -->
+    
+</launch>
