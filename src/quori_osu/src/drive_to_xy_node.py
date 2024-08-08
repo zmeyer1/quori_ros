@@ -178,7 +178,7 @@ class DriveAndHomeQuoriNode:
                 #     twist.linear.x = 0
 
                 if abs(error_yaw) < 0.1:
-                    if distance > 0.5:
+                    if distance > 0.25:
                         twist.linear.x = MAX_SPEED * np.log1p(distance - 1)  # Logarithmic ramp-up
                         twist.linear.x = min(twist.linear.x, MAX_SPEED)
                         twist.linear.x = max(twist.linear.x, MIN_SPEED)
