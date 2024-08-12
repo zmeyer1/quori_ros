@@ -17,7 +17,7 @@
     <node pkg="quori_osu" type="error_monitoring.py" name="error_monitoring" output="screen" />
 
     <!-- This helps with troubleshooting the joints individually (remove the space inbetween the dashes by standalone)-->
-    <!-- <node pkg="rqt_gui" type="rqt_gui" name="rqt_gui" args="- -standalone rqt_joint_trajectory_controller" />  -->
+    <node pkg="rqt_gui" type="rqt_gui" name="rqt_gui" args="--standalone rqt_joint_trajectory_controller" /> 
     
     <!-- Legacy Nodes/Launches -->
     <!-- <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" /> -->
