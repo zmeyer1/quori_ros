@@ -25,8 +25,14 @@ from std_msgs.msg import Int32
 
 
 # Simple Questions from Survey
-simple_audio_path = "/home/quori6/Music/simple_questions/"
+# simple_audio_path = "/home/quori6/Music/simple_questions/"
+current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+home_dir = os.path.expanduser("~")
+simple_audio_path = os.path.join(home_dir, 'Music/simple_questions/')
 introduction_file = os.path.join(simple_audio_path, "SimpleIntro.mp3")
+id_string = "default_id"  # Default value
+csv_file_path = os.path.join(home_dir, 'Documents/simple_response_logs', f'{id_string}_log_{current_time}.csv')
+
 simple_question_list = [
     "what is the sum of 2+2?",
     "how many days are in a week?",
@@ -85,12 +91,15 @@ current_process = None
 task_queue = queue.Queue()
 introduction_played = False
 gui_started = False
+updated_id = False
 
 # Flag to stop the loop
 all_questions_exhausted = False
 
 audio_playing = False
 
+
+# Initialize the audio output and delay
 def init():
     global current_delay
     # Set the audio output to "Headphones - Built In Audio"
@@ -107,20 +116,26 @@ def init_service_clients():
     stop_gui_service = rospy.ServiceProxy('stop_gui', Empty)
     return start_gui_service, stop_gui_service
 
+# Set the audio output
 def set_audio_output(sink_name):
     try:
         subprocess.run(['pactl', 'set-default-sink', sink_name], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Failed to set audio output: {e}")
 
-# CSV file path
-def get_csv_file_path():
-    # current_time = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    return f'/home/quori6/Documents/simple_response_logs/log_{current_time}.csv'
+# Functions
 
-csv_file_path = get_csv_file_path()
+# Get the CSV file path
+def update_csv_file_path():
+    global csv_file_path
+    if updated_id == False:
+        rospy.loginfo("Updating CSV file path.")
+        csv_file_path = os.path.join(home_dir, 'Documents/simple_response_logs', f'{id_string}_log_{current_time}.csv')
+        task_queue.put(publish_next_question)
 
+
+
+# Write the current question, answer, delay, rating, and timestamp to a CSV file
 def write_to_file():
     """Append the current question, answer, delay, rating, and timestamp to a CSV file."""
     rospy.loginfo("Writing data to CSV file. Current Text Index: %d vs Response List %d", current_text_index, len(simple_response_list))
@@ -163,54 +178,63 @@ def next_value_callback(msg):
 
     current_delay = delay_times[random.randint(0, len(delay_times) - 1)]
 
+def id_callback(msg):
+    global id_string, updated_id
+    id_string = msg.data  # Update the global variable with the received ID
+    rospy.loginfo(f"Received ID: {id_string}")
+    update_csv_file_path()  # Update the CSV file path with the new ID
+    updated_id = True
 
-# def play_audio(file_path):
-#     global current_process
-#     current_process = subprocess.Popen(["mpg123", file_path])
-
+# OG play_audio function
 def play_audio(file_path):
-    global current_process, audio_playing
+    global current_process
+    current_process = subprocess.Popen(["mpg123", file_path])
 
-    if audio_playing:
-        rospy.loginfo("Audio is currently playing. Skipping play request.")
-        return
+# Blocking play_audio function, TODO implement threading
+# def play_audio(file_path):
+#     global current_process, audio_playing
 
-    try:
-        # Set flag to indicate audio is playing
-        audio_playing = True
-        # Start the audio playback process
-        current_process = subprocess.Popen(["mpg123", file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = current_process.communicate()
+#     if audio_playing:
+#         rospy.loginfo("Audio is currently playing. Skipping play request.")
+#         return
 
-        if current_process.returncode == 0:
-            rospy.loginfo("Audio playback finished successfully.")
-        else:
-            rospy.logerr(f"An error occurred: {stderr.decode()}")
+#     try:
+#         # Set flag to indicate audio is playing
+#         audio_playing = True
+#         # Start the audio playback process
+#         current_process = subprocess.Popen(["mpg123", file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+#         stdout, stderr = current_process.communicate()
 
-    except Exception as e:
-        rospy.logerr(f"Error occurred during audio playback: {e}")
-    finally:
-        audio_playing = False  # Reset flag when audio finishes playing
+#         if current_process.returncode == 0:
+#             rospy.loginfo("Audio playback finished successfully.")
+#         else:
+#             rospy.logerr(f"An error occurred: {stderr.decode()}")
 
+#     except Exception as e:
+#         rospy.logerr(f"Error occurred during audio playback: {e}")
+#     finally:
+#         audio_playing = False  # Reset flag when audio finishes playing
 
-# def stop_audio():
-#     global current_process
-#     if current_process:
-#         current_process.terminate()
-#         current_process = None
-
+# OG stop_audio function
 def stop_audio():
-    global current_process, audio_playing
-    if current_process and audio_playing:
-        rospy.loginfo("Stopping audio playback.")
+    global current_process
+    if current_process:
         current_process.terminate()
-        current_process.wait()  # Ensure the process has terminated
         current_process = None
-        audio_playing = False  # Reset the flag
-    else:
-        rospy.loginfo("No audio is currently playing.")
 
+# Blocking stop_audio function, TODO implement threading
+# def stop_audio():
+#     global current_process, audio_playing
+#     if current_process and audio_playing:
+#         rospy.loginfo("Stopping audio playback.")
+#         current_process.terminate()
+#         current_process.wait()  # Ensure the process has terminated
+#         current_process = None
+#         audio_playing = False  # Reset the flag
+#     else:
+#         rospy.loginfo("No audio is currently playing.")
 
+# Sends a service call to start the GUI Node
 def start_gui():
     try:
         start_gui_service(EmptyRequest())
@@ -218,7 +242,7 @@ def start_gui():
     except rospy.ServiceException as e:
         rospy.logerr(f"Failed to call start_gui service: {e}")
 
-
+# Sends a service call to stop the GUI Node but has some issues 
 def stop_gui():
     try:
         stop_gui_service(EmptyRequest())
@@ -226,13 +250,13 @@ def stop_gui():
     except rospy.ServiceException as e:
         rospy.logerr(f"Failed to call stop_gui service: {e}")
 
-
+# Function to play the introduction audio
 def introduction():
     global introduction_file
     rospy.loginfo("Playing introduction.")
     play_audio(introduction_file)
 
-
+# Function to play audio after a delay using threading
 def play_with_delay(file_path, delay):
     """Function to play audio after a delay using threading."""
     def delayed_play():
@@ -243,12 +267,11 @@ def play_with_delay(file_path, delay):
 
     threading.Thread(target=delayed_play).start()
 
-
+# Play the next audio clip and check if all questions have been exhausted
 def play_next_audio_clip():
     global current_audio_index, all_questions_exhausted, current_delay
 
     rospy.loginfo("Playing clip %d...", current_audio_index)
-    rospy.loginfo(f"Audio Count {current_audio_index} vs Text Count {current_text_index} vs Next Button Count {next_button_count}")
     folder_path = os.path.expanduser(simple_audio_path)
 
     if current_audio_index < len(simple_audio_list):
@@ -272,7 +295,7 @@ def play_next_audio_clip():
     else:
         rospy.loginfo("No more clips to play.")
 
-
+# Function to publish the next question to the GUI
 def publish_next_question():
     global current_text_index, next_button_count, current_audio_index, all_questions_exhausted
     rospy.loginfo(
@@ -302,10 +325,11 @@ def publish_next_question():
         else:
             rospy.loginfo("No more questions to publish.")
 
-
+# Callback function for the controller
 def joy_callback(data):
     global introduction_played, gui_started
-    if data.buttons == (0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0):  # Start button for introduction or next question
+    # Start button for introduction or next question
+    if data.buttons == (0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0):  
         rospy.loginfo("Start button pressed.")
 
         # Play the introduction if it hasn't been played yet
@@ -316,27 +340,29 @@ def joy_callback(data):
         elif not gui_started and introduction_played:
             start_gui()
             gui_started = True
-            task_queue.put(publish_next_question)
+            # task_queue.put(publish_next_question)
         # Publish the next question if the GUI has been started
         # This shouldnt be necessary since the /next service is being used to trigger the next question
         else:
             task_queue.put(publish_next_question)
-
-    elif data.buttons == (0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0):  # Select button for stopping audio
+    # Select button for stopping audio
+    elif data.buttons == (0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0):  
         rospy.loginfo("Select button pressed.")
         task_queue.put(stop_audio)
-
-    elif data.buttons == (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0):  # A button for next audio clip
+    # A button for next audio clip
+    elif data.buttons == (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0):  
         rospy.loginfo("A button pressed.")
-        task_queue.put(play_next_audio_clip)
+        if updated_id == True:
+            task_queue.put(play_next_audio_clip)
 
-
+# Setup the listeners 
 def listener():
     rospy.Subscriber("/joy", Joy, joy_callback)
     rospy.Subscriber("/next_value", Int32, next_value_callback)
+    rospy.Subscriber('/id_topic', String, id_callback)
     rospy.spin()
 
-
+# Process the tasks in the task queue
 def process_tasks():
     try:
         while not task_queue.empty():
@@ -346,12 +372,12 @@ def process_tasks():
         pass
     root.after(100, process_tasks)
 
-
+# Signal handler to catch the shutdown signal
 def signal_handler(sig, frame):
     rospy.signal_shutdown("Shutdown signal received.")
     root.quit()  # Stop the Tkinter main loop
 
-
+# Callback function for the /next service
 def next_service_callback(req):
     global next_button_count
     next_button_count += 1
@@ -359,7 +385,7 @@ def next_service_callback(req):
     rospy.loginfo(f"Received /next service call. Count: {next_button_count}")
     return []
 
-
+# Main function
 if __name__ == '__main__':
     # Initialize the ROS node
     rospy.init_node('q_and_a', anonymous=True)
@@ -367,7 +393,7 @@ if __name__ == '__main__':
     init()
 
     # Initialize the question publisher
-    question_publisher = rospy.Publisher('/questions', String, queue_size=10)
+    question_publisher = rospy.Publisher('/questions', String, queue_size=10, latch=True)
 
     # Initialize the service clients
     start_gui_service, stop_gui_service = init_service_clients()
