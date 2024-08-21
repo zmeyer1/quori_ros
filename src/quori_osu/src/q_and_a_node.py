@@ -40,7 +40,6 @@ csv_file_path = os.path.join(home_dir, 'Documents/q_and_a_response_logs', f'{id_
 masterlist_file_path = os.path.join(home_dir, 'Documents/q_and_a_json_files/masterlist.json')
 
 
-
 # Global variables for questions and answers
 question_id_list = []
 simple_question_list = []
@@ -58,6 +57,10 @@ delay_times = [1, 1.5, 2, 2.5, 3]
 # Indexes and counters
 current_text_index = 0
 current_audio_index = 0
+current_simple_writing_index = 0
+current_complex_writing_index = 0
+current_simple_pub_index = 0
+current_complex_pub_index = 0
 next_button_count = 0
 current_delay = 0
 total_questions = 0
@@ -78,9 +81,6 @@ def init():
 
     # Set the delay for the first question
     current_delay = delay_times[random.randint(0, len(delay_times) - 1)]
-
-    # Initialize the questions and answers
-    # initialize_questions_and_answers()
 
 
 # Initialize the service clients
@@ -163,8 +163,35 @@ def initialize_questions_and_answers():
     rospy.loginfo(f"Total questions: {total_questions}")
     rospy.loginfo(f"Simple Questions: {len(simple_question_list)}, Complex Questions: {len(complex_question_list)}")
 
+    # Send the first question to the GUI
+    publish_next_question()
 
 # Functions
+
+# Monitor the console output for audio_playing status
+def monitor_console_output(command):
+    global audio_playing
+
+    # Start the subprocess with the command
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    while True:
+        # Read the output line by line
+        output = process.stdout.readline()
+        if output == '':
+            break
+        if output:
+            # Check for specific strings in the output
+            if 'Now playing' in output:
+                audio_playing = True
+                print("Audio playing status: True")
+            elif 'Decoding of' in output:
+                audio_playing = False
+                print("Audio playing status: False")
+    
+    # Wait for the process to finish
+    process.wait()
+
 
 # Get the CSV file path
 def update_csv_file_path():
@@ -172,16 +199,13 @@ def update_csv_file_path():
     csv_file_path = os.path.join(home_dir, 'Documents/q_and_a_response_logs', 
                                  f'{id_string}_key{key_id_string}_log_{current_time}.csv')
     rospy.loginfo(f"Updated CSV file path to: {csv_file_path}")
+  
 
-
-# Write the current question, answer, delay, rating, and timestamp to a CSV file
+# Write to the CSV file
 def write_to_file():
     """Append the original question ID, current question, answer, delay, rating, and timestamp to a CSV file."""
+    global current_complex_writing_index, current_simple_writing_index, current_audio_index
     rospy.loginfo("Writing data to CSV file. Current Text Index: %d vs Response List %d", current_text_index, len(response_list))
-
-    # Determine the log index for accessing the corresponding question/answer
-    simple_length = len(simple_question_list)
-    complex_length = len(complex_question_list)
 
     log_index = len(response_list) - 1 
     original_question_id = question_id_list[log_index]  # Ensure correct indexing
@@ -189,15 +213,25 @@ def write_to_file():
 
     # Determine if the question is simple or complex based on the complexity list
     if complexity_list[log_index] == 'complex':
-        current_question = complex_question_list[log_index-simple_length]
-        current_answer = complex_answer_list[log_index-simple_length]
-        current_audio_file = complex_audio_list[log_index-simple_length]
+        index = current_complex_writing_index 
+        rospy.loginfo(f"Writing Index: {index}")
+        current_question = complex_question_list[index]
+        current_answer = complex_answer_list[index]
+        current_audio_file = complex_audio_list[index]
         current_complexity = 'Complex'
+        current_complex_writing_index += 1
+        rospy.loginfo(f"Complex Index: {current_complex_writing_index}")
+        # current_audio_index += 1
     else:
-        current_question = simple_question_list[log_index-complex_length]
-        current_answer = simple_answer_list[log_index-complex_length]
-        current_audio_file = simple_audio_list[log_index-complex_length]
+        index = current_simple_writing_index
+        rospy.loginfo(f"Writing Index: {index}")
+        current_question = simple_question_list[index]
+        current_answer = simple_answer_list[index]
+        current_audio_file = simple_audio_list[index]
         current_complexity = 'Simple'
+        current_simple_writing_index += 1
+        rospy.loginfo(f"Simple Index: {current_simple_writing_index}")
+        # current_audio_index += 1
     
     if rating_index is not None:
         if rating_index == 0:
@@ -223,7 +257,13 @@ def write_to_file():
     
     rospy.loginfo(f"Data logged: Question ID: {original_question_id}, Question: {current_question}, Answer: {current_answer}, Complexity: {current_complexity}, "
                   f"Delay: {current_delay}, Rating: {rating}, Rating Index: {rating_index}, Time: {current_time}, File: {current_audio_file}")
+    
 
+    # Check if we have exhausted all questions
+    # It needs to be here because its the last thing that happens in the order of functions
+    if all_questions_exhausted:
+        rospy.loginfo("All out of questions.")
+        question_publisher.publish("All Out of Questions")
 
 # Callback function for the /next_value topic
 def next_value_callback(msg):
@@ -233,10 +273,13 @@ def next_value_callback(msg):
     # You can add debugging info if needed to check the received values
     rospy.loginfo(f"Received index: {msg.data}")
 
-    rospy.loginfo(f"Len of response list {len(response_list)} vs Total Question List Length: {len(simple_question_list) + len(complex_question_list)}")
+    # Check if we have exhausted all questions
     if len(response_list) <= len(simple_question_list) + len(complex_question_list):
         write_to_file()
+    else:
+        rospy.loginfo("All questions have been answered. No more logging.")
 
+    # Update the current delay for the next question
     current_delay = delay_times[random.randint(0, len(delay_times) - 1)]
 
 
@@ -262,17 +305,11 @@ def key_id_callback(data):
     update_csv_file_path()
 
 
-# def id_callback(msg):
-#     global id_string, updated_id
-#     id_string = msg.data  # Update the global variable with the received ID
-#     rospy.loginfo(f"Received ID: {id_string}")
-#     update_csv_file_path()  # Update the CSV file path with the new ID
-#     updated_id = True
-
 # OG play_audio function
 def play_audio(file_path):
     global current_process
     current_process = subprocess.Popen(["mpg123", file_path])
+
 
 # Blocking play_audio function, TODO implement threading
 # def play_audio(file_path):
@@ -299,12 +336,14 @@ def play_audio(file_path):
 #     finally:
 #         audio_playing = False  # Reset flag when audio finishes playing
 
+
 # OG stop_audio function
 def stop_audio():
     global current_process
     if current_process:
         current_process.terminate()
         current_process = None
+
 
 # Blocking stop_audio function, TODO implement threading
 # def stop_audio():
@@ -317,6 +356,7 @@ def stop_audio():
 #         audio_playing = False  # Reset the flag
 #     else:
 #         rospy.loginfo("No audio is currently playing.")
+
 
 # Sends a service call to start the GUI Node
 def start_gui():
@@ -333,7 +373,7 @@ def stop_gui():
         stop_gui_service(EmptyRequest())
         rospy.loginfo("Stop GUI service called successfully.")
     except rospy.ServiceException as e:
-        rospy.logerr(f"Failed to call stop_gui service: {e}")
+        rospy.loginfo("GUI is already stopped.")
 
 
 # Function to play the introduction audio
@@ -354,88 +394,44 @@ def play_with_delay(file_path, delay):
 
     threading.Thread(target=delayed_play).start()
 
+# Function to play the next audio clip
 
-# Play the next audio clip and check if all questions have been exhausted'
 def play_next_audio_clip():
     global current_audio_index, all_questions_exhausted, current_delay
 
     rospy.loginfo("Playing clip %d...", current_audio_index)
-    rospy.loginfo(f"Current Audio Index: {current_audio_index} vs Current Text Index: {current_text_index} vs Next Button Count: {next_button_count}")
-    # folder_path = os.path.expanduser(simple_audio_path)
 
-    simple_length = len(simple_question_list)
-    complex_length = len(complex_question_list)
-
-    # Ensure the audio index matches the text index
-    if current_audio_index != current_text_index - 1 and current_audio_index <= total_questions and current_text_index >= next_button_count:
-        rospy.loginfo("Audio index out of sync with text index. Setting current_audio_index to current_text_index.")
-        current_audio_index = current_text_index - 1
-
-    if current_audio_index < total_questions and current_text_index >= next_button_count:
+    # Ensure the audio index is within the correct range
+    # if current_audio_index < total_questions:
+    if not all_questions_exhausted:  
         if complexity_list[current_audio_index] == 'complex':
             folder_path = os.path.expanduser(complex_audio_path)
-            file_name = complex_audio_list[current_audio_index-simple_length]
-            file_path = os.path.join(folder_path, file_name)
+            file_name = complex_audio_list[current_complex_writing_index]
         else:
             folder_path = os.path.expanduser(simple_audio_path)
-            file_name = simple_audio_list[current_audio_index-complex_length]
-            file_path = os.path.join(folder_path, file_name)
-        if os.path.isfile(file_path):
-            rospy.loginfo("Playing file: %s", file_path)
-            play_with_delay(file_path, current_delay)  # Use the threaded delay function
-        else:
-            rospy.logwarn("File not found: %s", file_path)
+            file_name = simple_audio_list[current_simple_writing_index]
 
-        # Only increment if the audio was played and the next button was pressed
-        if next_button_count > current_audio_index:
-            current_audio_index += 1
+        file_path = os.path.join(folder_path, file_name)
+        play_with_delay(file_path, current_delay)
 
-        # Check if all audio clips have been played
-        if current_audio_index >= total_questions:
-            all_questions_exhausted = True
-            rospy.loginfo("All audio clips played. Setting all_questions_exhausted to True.")
+        # Update the index after playing the audio
+        # current_audio_index += 1
     else:
-        rospy.loginfo("No more clips to play.")
-
-
-# # Play the next audio clip and check if all questions have been exhausted
-# def play_next_audio_clip():
-#     global current_audio_index, all_questions_exhausted, current_delay, current_text_index
-
-#     rospy.loginfo("Playing clip %d...", current_audio_index)
-#     folder_path = os.path.expanduser(simple_audio_path)
-
-#     if current_audio_index > current_text_index:
-#         rospy.loginfo("Audio Out of Sync. Setting current_audio_index to current_text_index.")
-#         current_audio_index = current_text_index
-
-#     if current_audio_index < len(simple_audio_list):
-#         file_name = simple_audio_list[current_audio_index]
-#         file_path = os.path.join(folder_path, file_name)
-#         if os.path.isfile(file_path):
-#             rospy.loginfo("Playing file: %s", file_path)
-
-#             play_with_delay(file_path, current_delay)  # Use the threaded delay function
-
-#         else:
-#             rospy.logwarn("File not found: %s", file_path)
-
-#         if current_audio_index < next_button_count:
-#             current_audio_index += 1
-        
-#         if current_audio_index >= len(simple_audio_list):
-#             all_questions_exhausted = True
-#             rospy.loginfo("All audio clips played. Setting all_questions_exhausted to True.")
-#             # question_publisher.publish("All Done")  # Publish "All Done" message
-#     else:
-#         rospy.loginfo("No more clips to play.")
+        rospy.loginfo("All questions have been exhausted.")
+        all_questions_exhausted = True
 
 
 # Function to publish the next question to the GUI
 def publish_next_question():
-    global current_text_index, next_button_count, current_audio_index, all_questions_exhausted
+    global current_text_index, next_button_count, current_audio_index, all_questions_exhausted, current_complex_pub_index, current_simple_pub_index
     rospy.loginfo(
-        f"Next Button Count: {next_button_count} vs Text Count: {current_text_index} vs Audio Count: {current_audio_index}")
+        f"Publish Next Question called \nNext Button Count: {next_button_count} vs Text Count: {current_text_index} vs Audio Count: {current_audio_index} vs Total Questions: {total_questions} vs Response List: {len(response_list)}")
+    rospy.loginfo(f"Length of List: Simple: {len(simple_question_list)} and Complex: {len(complex_question_list)}")
+
+        # # If this is the last question, mark all questions as exhausted
+        # if current_text_index >= total_questions:
+        #     all_questions_exhausted = True
+        #     rospy.loginfo("All questions published. Setting all_questions_exhausted to True.")
 
     # Check if we have exhausted all questions
     if all_questions_exhausted:
@@ -448,25 +444,33 @@ def publish_next_question():
         # This will ensure that the index is only updated if needed
         if current_text_index < total_questions:
             if complexity_list[current_text_index] == 'complex':
-                question = complex_question_list[current_text_index - len(simple_question_list)]
+                # index = current_text_index - len(simple_question_list) - (len(complex_question_list) - len(simple_question_list))
+                index = current_complex_pub_index
+                question = complex_question_list[index]
+                current_complex_pub_index += 1
             else:
-                question = simple_question_list[current_text_index - len(complex_question_list)]
-            rospy.loginfo(f"Publishing question at index {current_text_index}: {question}")
+                # index = current_text_index - len(complex_question_list) - (len(simple_question_list) - len(complex_question_list))
+                index = current_simple_pub_index
+                question = simple_question_list[index]
+                current_simple_pub_index += 1
+            rospy.loginfo(f"Publishing question at index {index}: {question}")
             question_publisher.publish("Question: \n Hey Quori, " + question)
             current_audio_index = current_text_index
             current_text_index += 1
 
             # If this is the last question, mark all questions as exhausted
-            if current_text_index >= total_questions:
+            if current_text_index > total_questions:
                 all_questions_exhausted = True
                 rospy.loginfo("All questions published. Setting all_questions_exhausted to True.")
         else:
+            all_questions_exhausted = True
             rospy.loginfo("No more questions to publish.")
 
 
 # Callback function for the controller
 def joy_callback(data):
     global introduction_played, gui_started
+
     # Start button for introduction or next question
     if data.buttons == (0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0):  
         rospy.loginfo("Start button pressed.")
@@ -482,19 +486,26 @@ def joy_callback(data):
         if not gui_started:
             start_gui()
             gui_started = True
-        # Publish the next question if the GUI has been started
-        # This shouldnt be necessary since the /next service is being used to trigger the next question
         else:
-            task_queue.put(publish_next_question)
+            rospy.loginfo("Doing Nothing.")
+            # task_queue.put(publish_next_question)
+
     # Select button for stopping audio
     elif data.buttons == (0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0):  
         rospy.loginfo("Select button pressed.")
         task_queue.put(stop_audio)
+
     # A button for next audio clip
     elif data.buttons == (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0):  
         rospy.loginfo("A button pressed.")
         if updated_id == True:
             task_queue.put(play_next_audio_clip)
+
+    elif data.buttons == (0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0):  
+        rospy.loginfo("Start and Select buttons pressed.")
+        task_queue.put(stop_gui)
+        signal_handler(None, None)  # Call the signal handler to shut down
+        
 
 
 # Setup the listeners 
@@ -551,6 +562,9 @@ if __name__ == '__main__':
     root.withdraw()
 
     root.after(100, process_tasks)
+
+    # monitor_thread = threading.Thread(target=monitor_console_output, args=(current_process,))
+    # monitor_thread.start()
 
     listener_thread = threading.Thread(target=listener)
     listener_thread.start()

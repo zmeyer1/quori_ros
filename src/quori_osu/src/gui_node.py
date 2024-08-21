@@ -31,25 +31,6 @@ class GuiApp:
         # Create the ID entry screen
         self.create_id_screen()
 
-# class GuiApp:
-#     def __init__(self, root, next_service, next_value_publisher, id_publisher):
-#         self.root = root
-#         self.root.title("ROS Noetic GUI")
-#         self.root.geometry("1280x720")
-
-#         # Set the window to fullscreen
-#         self.root.attributes('-fullscreen', False)
-
-#         # Bind the ESC key to exit fullscreen
-#         self.root.bind("<Escape>", self.exit_fullscreen)
-
-#         self.next_service = next_service  # Store the next_service proxy
-#         self.next_value_publisher = next_value_publisher  # Store the publisher for the next value
-#         self.id_publisher = id_publisher  # Store the publisher for the ID
-
-#         # Create the ID entry screen
-#         self.create_id_screen()
-
     def create_id_screen(self):
         """Set up the screen to enter the ID and integer value."""
         self.id_frame = tk.Frame(self.root)
@@ -192,11 +173,11 @@ class GuiApp:
         if lastest_question != "All Out of Questions":
             rospy.loginfo("Button pressed in GUI")
             try:
-                self.next_service(EmptyRequest())
-                rospy.loginfo("Next service called successfully.")
-
                 # Publish the selected button index as an integer
                 self.next_value_publisher.publish(self.selected_button)
+
+                self.next_service(EmptyRequest())
+                rospy.loginfo("Next service called successfully.")
                 rospy.loginfo(f"Published selected button index: {self.selected_button}")
             except rospy.ServiceException as e:
                 rospy.logerr(f"Failed to call next service: {e}")
@@ -216,7 +197,9 @@ class GuiApp:
         
     def close(self):
         """Close the application window safely."""
-        self.root.after(0, self.root.quit)
+        rospy.signal_shutdown("Application window closed.")
+        self.root.quit()  # Stop the main loop if it's running
+        self.root.destroy()
 
 class GuiNode:
     def __init__(self):
