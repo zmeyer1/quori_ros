@@ -1,0 +1,14 @@
+<launch>
+    <!-- Static Transform Publisher -->
+    <node pkg="tf" type="static_transform_publisher" name="static_transform" args="0 0 1 0 0 0 base_link head_camera 100"/>
+
+    <!-- Additional Static Transforms -->
+    <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="body_upper_to_head" args="0 0 0.2 0 0 0 1 quori/body_upper quori/head" /> -->
+
+    <!-- Launch Nodes -->
+    <param name="use_sim_time" value="true"/>
+
+    <node pkg="quori_osu" type="object_and_depth_node.py" name="object_and_depth_node" output="screen" />
+    <node pkg="quori_osu" type="tf_broadcaster.py" name="tf_broadcaster" output="screen" />
+    <node pkg="quori_osu" type="cluster.py" name="coordinate_cluster_node" output="screen" />
+</launch>

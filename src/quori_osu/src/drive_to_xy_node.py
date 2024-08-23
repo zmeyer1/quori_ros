@@ -36,15 +36,15 @@ class DriveAndHomeQuoriNode:
         self.cmd_vel_pub = rospy.Publisher('/quori/base_controller/cmd_vel', Twist, queue_size=10)
 
         self.listener = tf.TransformListener()
-
+        self.home_quori_body(None)
         self.action_server = actionlib.SimpleActionServer('drive_to_point', MoveBaseAction, self.execute_drive, False)
         self.action_server.start()
+        self.service = rospy.Service('/home_quori', Empty, self.home_quori_body)
 
-        #self.service = rospy.Service('/home_quori', Empty, self.home_quori_body)
 
         # Align the orientation of the body with the wheel axle initially
         # Doesnt seem to trigger everytime
-        # self.home_quori_body(None)
+        #self.home_quori_body(None)
 
         rospy.loginfo("Drive and Home Quori Node ready")
 
@@ -177,7 +177,7 @@ class DriveAndHomeQuoriNode:
                 # else:
                 #     twist.linear.x = 0
 
-                if abs(error_yaw) < 0.1:
+                if abs(error_yaw) < 0.3:
                     if distance > 0.25:
                         twist.linear.x = MAX_SPEED * np.log1p(distance - 1)  # Logarithmic ramp-up
                         twist.linear.x = min(twist.linear.x, MAX_SPEED)
