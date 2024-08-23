@@ -11,9 +11,10 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseFeedback, MoveBaseResult
 from std_srvs.srv import Empty, EmptyResponse
 import numpy as np
 import math
+import random
 
 # Maximum speed for the controller
-MAX_SPEED = 0.6
+MAX_SPEED = 0.5
 MIN_SPEED = 0.1
 
 # Proportional gain for the controller
@@ -111,6 +112,71 @@ class DriveAndHomeQuoriNode:
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
             rospy.logerr("Transform lookup failed: %s", e)
             return EmptyResponse()
+        
+
+    def Random_facing_direction(self, req):
+        rate = rospy.Rate(10)  # 10 Hz
+        try:
+            begin_yaw = tf_trans.euler_from_quaternion(self.listener.lookupTransform('/map', '/quori/base_link', rospy.Time(0))[1])[2]
+
+            while not rospy.is_shutdown():
+                # Wait for the transform to be available
+                self.listener.waitForTransform('/quori/body_upper', '/ramsis/wheel_axle', rospy.Time(0), rospy.Duration(4.0))
+
+                # Get the transformation between the frames
+                (trans, rot) = self.listener.lookupTransform('/quori/body_upper', '/ramsis/wheel_axle', rospy.Time(0))
+
+                # We only need the rotation part to align the orientation
+                euler = tf_trans.euler_from_quaternion(rot)
+                yaw = euler[2]  # Extract yaw from the quaternion (roll, pitch, yaw)
+
+                # Calculate the current yaw
+                current_yaw = tf_trans.euler_from_quaternion(self.listener.lookupTransform('/map', '/quori/base_link', rospy.Time(0))[1])[2]
+                
+                # Desired yaw to face direction
+                angle = random.uniform(-2, 2)
+                desired_yaw = angle + begin_yaw
+                print(f"desired direction is : {angle}")
+
+                # Determine the error between the current yaw and desired yaw
+                error_yaw = desired_yaw - current_yaw
+
+                # # Calculate the yaw error
+                # error_yaw = yaw - current_yaw
+
+                # Normalize the yaw error to the range [-pi, pi]
+                error_yaw = self.normalize_angle(error_yaw)
+
+                # Check if the yaw error is within the acceptable tolerance
+                if abs(error_yaw) < YAW_TOLERANCE:
+                    rospy.loginfo(f"Alignment complete: Yaw Error = {error_yaw:.3f} rad (within tolerance)")
+                    twist = Twist()
+                    twist.angular.z = 0
+                    twist.linear.x = 0
+                    twist.linear.y = 0
+                    twist.linear.z = 0
+                    twist.angular.x = 0
+                    twist.angular.y = 0
+                    self.cmd_vel_pub.publish(twist)  # Stop any motion
+                    break
+
+                # Create a Twist message to send the orientation command
+                twist = Twist()
+                twist.angular.z = k_p_angular * error_yaw
+                twist.angular.z = max(min(twist.angular.z, MAX_SPEED), -MAX_SPEED)  # Clamp to max speed
+
+                # Publish the command
+                self.cmd_vel_pub.publish(twist)
+
+                rospy.loginfo(f"Aligning /quori/body_upper with /ramsis/wheel_axle: Yaw Error = {error_yaw:.3f} rad")
+
+                rate.sleep()
+
+            return EmptyResponse()
+
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
+            rospy.logerr("Transform lookup failed: %s", e)
+            return EmptyResponse()
 
     def execute_drive(self, goal):
         target_x = goal.target_pose.pose.position.x
@@ -152,11 +218,12 @@ class DriveAndHomeQuoriNode:
                 if distance < DISTANCE_TOLLERANCE:
                     rospy.loginfo("Reached the goal!")
 
-                    # Align the orientation of the body with the wheel axle
-                    self.home_quori_body(None)
+                    twist.linear.x = 0
+
+                    # Assign a random facing direction
+                    self.Random_facing_direction(None)
 
                     # Stop the robot
-                    twist.linear.x = 0
                     twist.angular.z = 0
                     self.cmd_vel_pub.publish(twist)
                     result = MoveBaseResult()

@@ -10,6 +10,10 @@ import tf
 from visualization_msgs.msg import Marker
 from threading import Timer
 import threading
+import math
+from geometry_msgs.msg import PointStamped, Pose, Point, Vector3
+from std_msgs.msg import Header, ColorRGBA
+from visualization_msgs.msg import Marker
 
 class HumanDetectionWithDepth():
     def __init__(self):
@@ -21,7 +25,7 @@ class HumanDetectionWithDepth():
         self.CX_DEPTH = 322.93994140625
         self.CY_DEPTH = 237.65728759765625
         self.marker_id = 0
-        self.marker_pub = rospy.Publisher('/visualization_marker', Marker, queue_size=10)
+        #self.marker_pub = rospy.Publisher('/visualization_marker', Marker, queue_size=10)
         self.coord_pub = rospy.Publisher('/human_coordinates', PointStamped, queue_size=10)
 
         # Load pre-trained human detection model (e.g., YOLO)
@@ -86,15 +90,18 @@ class HumanDetectionWithDepth():
 
                     # Label depth value
                     cv2.putText(rgb_image, f"Depth: {depth_value}mm", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    cv2.putText(rgb_image, f"Depth: {depth_value}mm", (0, 0), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
                     # Label coordinates
                     transformed_x = coordinate_estimation.point.x
                     transformed_y = coordinate_estimation.point.y
+                    #rospy.loginfo(f"Transformed coordinates: x={transformed_x}, y={transformed_y}")
                     transformed_z = coordinate_estimation.point.z
                     label = f"Coord: z={transformed_z:.2f}"
                     cv2.putText(rgb_image, label, (center_x, center_y-30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)  # Yellow color
 
             # Draw and publish origin marker
+            '''
             origin_marker = Marker()
             origin_marker.header.frame_id = 'quori/base_link'
             origin_marker.header.stamp = rospy.Time.now()
@@ -110,7 +117,7 @@ class HumanDetectionWithDepth():
             origin_marker.scale.z = 0.1
             origin_marker.color.a = 1.0
             origin_marker.color.b = 1.0
-            self.marker_pub.publish(origin_marker)
+            self.marker_pub.publish(origin_marker)'''
 
             # Display the result (optional, for debugging)
             if not rospy.is_shutdown():
@@ -139,7 +146,7 @@ class HumanDetectionWithDepth():
                 scores = detection[5:]
                 class_id = np.argmax(scores)
                 confidence = scores[class_id]
-                if confidence > 0.5 and class_id < len(self.classes):
+                if confidence > 0.3 and class_id < len(self.classes):
                     center_x = int(detection[0] * width)
                     center_y = int(detection[1] * height)
                     w = int(detection[2] * width)
@@ -164,52 +171,47 @@ class HumanDetectionWithDepth():
             if depth_value == 0:  # Avoid division by zero
                 rospy.logwarn("Depth value is zero; skipping computation.")
                 return None
+            
+            # Create a PointStamped object for the point in the camera frame
+            point_in_camera_frame = PointStamped()
+            point_in_camera_frame.header = header
+            point_in_camera_frame.header.frame_id = 'quori/head_camera'
+            point_in_camera_frame.point.x = (bbox_x_center+150 - self.CX_DEPTH) / self.FX_DEPTH * depth_value #ADDED 150 to account for the offset of the camera
+            point_in_camera_frame.point.y = (bbox_y_center - self.CY_DEPTH) / self.FY_DEPTH * depth_value
+            point_in_camera_frame.point.z = depth_value
 
-            z1 = depth_value / 1000.0  # Convert depth value from mm to meters
-            x1 = (bbox_x_center - self.CX_DEPTH) * z1 / self.FX_DEPTH
-            y1 = (bbox_y_center - self.CY_DEPTH) * z1 / self.FY_DEPTH
+            # Transform the point to the map frame
+            point_in_map_frame = self.listener.transformPoint('/map', point_in_camera_frame)
+            x1 = point_in_map_frame.point.x
+            y1 = point_in_map_frame.point.y
+            z1 = point_in_map_frame.point.z
 
-          #  rospy.loginfo(f"Computed coordinates: x={x1}, y={y1}, z={z1}")
-
-
-
-            # Create and publish PointStamped object
-            point = PointStamped()
-            point.header = header
-            point.header.frame_id = 'quori/head_camera'
-            point.point.x = x1
-            point.point.y = y1
-            point.point.z = z1
+            #rospy.loginfo(f"Computed coordinates: x={x1}, y={y1}, z={z1}")
 
             # Create and publish Marker
-            marker = Marker()
-            marker.header.frame_id = ''
-            marker.header.stamp = rospy.Time.now()
-            marker.ns = 'human_detection'
-            marker.id = self.marker_id
-            marker.type = Marker.SPHERE
-            marker.action = Marker.ADD
-            marker.pose.position.x = x1
-            marker.pose.position.y = y1
-            marker.pose.position.z = z1
-            marker.scale.x = 0.1
-            marker.scale.y = 0.1
-            marker.scale.z = 0.1
-            marker.color.a = 1.0
-            marker.color.r = 1.0
-            marker.color.g = 0.0
-            marker.color.b = 0.0
-            
+            '''
+            marker = Marker(
+                header=Header(stamp=rospy.Time.now(), frame_id='map'),
+                ns='human_detection',
+                id=self.marker_id,
+                type=Marker.SPHERE,
+                action=Marker.ADD,
+                pose=Pose(position=Point(x=x1, y=y1, z=z1)),
+                color=ColorRGBA(a=1.0, r=1.0, g=0.0, b=0.0),
+            )
+
             self.marker_id += 1
             self.marker_pub.publish(marker)
-            self.coord_pub.publish(point)
+            '''
+            self.coord_pub.publish(point_in_map_frame)
             
-            #rospy.loginfo(point)
+            #rospy.loginfo(f"Published point: {point_in_map_frame}")
 
-            return point
+            return point_in_map_frame
         except Exception as e:
             rospy.logerr(f"An error occurred while computing coordinates: {e}")
-            return None
+        return None
+
     def shutdown():
         print("Object detection shutting down...")
         rospy.signal_shutdown("shutting down after timeout")
