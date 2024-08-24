@@ -1,0 +1,5 @@
+This is a placeholderfile for the yolo3.weights that needs to be with the interupt scripts. To download this file go to:
+
+https://drive.google.com/file/d/1N3-FM_pirKsi_Tyo7Wc0eNEHYeod6KsS/view?usp=sharing
+
+and use the downloaded file to replace this placeholder.txt
