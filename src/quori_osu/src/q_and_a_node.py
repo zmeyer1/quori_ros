@@ -207,6 +207,7 @@ def write_to_file():
     global current_complex_writing_index, current_simple_writing_index, current_audio_index
     rospy.loginfo("Writing data to CSV file. Current Text Index: %d vs Response List %d", current_text_index, len(response_list))
 
+
     log_index = len(response_list) - 1 
     original_question_id = question_id_list[log_index]  # Ensure correct indexing
     rating_index = response_list[-1] if response_list else None
@@ -440,9 +441,9 @@ def publish_next_question():
         return
 
     # Ensure that the next button count is used to control publishing
-    if next_button_count >= current_text_index:
+    if next_button_count + 1 >= current_text_index:
         # This will ensure that the index is only updated if needed
-        if current_text_index < total_questions:
+        if current_text_index <= total_questions and len(response_list) < total_questions:
             if complexity_list[current_text_index] == 'complex':
                 # index = current_text_index - len(simple_question_list) - (len(complex_question_list) - len(simple_question_list))
                 index = current_complex_pub_index
