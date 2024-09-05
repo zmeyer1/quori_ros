@@ -2,3 +2,7 @@ devel
 build
 .DS_Store
 ._.DS_Store
+<<<<<<< HEAD
+=======
+src/quori_osu/scripts/yolov3.weights
+>>>>>>> 4093a0773ba07b59b563f4cc2fe1c3aca977f085

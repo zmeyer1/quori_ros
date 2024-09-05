@@ -96,7 +96,11 @@ class GuiApp:
             btn.pack(side=tk.LEFT, anchor=tk.CENTER, padx=5)
             self.buttons.append(btn)
 
+<<<<<<< HEAD
         # self.next_service(EmptyRequest())
+=======
+        self.next_service(EmptyRequest())
+>>>>>>> 4093a0773ba07b59b563f4cc2fe1c3aca977f085
 
     def bring_to_front(self):
         """Bring the window to the front and ensure it stays on top."""
