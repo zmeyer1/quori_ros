@@ -28,10 +28,18 @@ class GuiApp:
         self.next_value_publisher = next_value_publisher
         self.id_publisher = id_publisher
         self.key_publisher = key_publisher 
-        self.scale_publisher = scale_publisher        
+        self.scale_publisher = scale_publisher   
+
+        # self.qtimer = rospy.Timer(rospy.Duration(1.0), self.check_for_question)     
 
         # Create the ID entry screen
         self.create_id_screen()
+
+    def check_for_question(self, event):
+        # If a new question has been received, update the GUI
+        global lastest_question
+        # if self is not None and self.latest_question != "Waiting for message...":
+        self.update_label(lastest_question)
 
     def create_id_screen(self):
         """Set up the screen to enter the ID and integer value."""
@@ -146,6 +154,7 @@ class GuiApp:
             btn.pack(side=tk.LEFT, anchor=tk.CENTER, padx=5)
             self.buttons.append(btn)
 
+        self.update_label(lastest_question)
         # self.next_service(EmptyRequest())
 
     def bring_to_front(self):
@@ -198,6 +207,8 @@ class GuiApp:
                 self.key_publisher.publish(user_key_msg)
                 rospy.loginfo(f"Published User ID: {id_string}, Key ID: {int_value}")
 
+            # rospy.sleep(1.0)
+
             # Only move to the main GUI if everything is valid
             self.create_main_gui()
         except ValueError as e:
@@ -207,6 +218,7 @@ class GuiApp:
             error_label = tk.Label(self.id_frame, text="Please enter a valid integer.", fg="red", font=("Arial", 16))
             error_label.pack(pady=10)
             return
+
 
     def select_button(self, button_index):
         """Select a button, trigger the 'Next' functionality, and reset buttons."""

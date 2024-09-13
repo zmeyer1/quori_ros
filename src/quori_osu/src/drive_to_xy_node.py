@@ -11,16 +11,10 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseFeedback, MoveBaseResult
 from std_srvs.srv import Empty, EmptyResponse
 import numpy as np
 import math
-<<<<<<< HEAD
-
-# Maximum speed for the controller
-MAX_SPEED = 0.6
-=======
 import random
 
 # Maximum speed for the controller
 MAX_SPEED = 0.5
->>>>>>> 4093a0773ba07b59b563f4cc2fe1c3aca977f085
 MIN_SPEED = 0.1
 
 # Proportional gain for the controller
@@ -43,17 +37,6 @@ class DriveAndHomeQuoriNode:
         self.cmd_vel_pub = rospy.Publisher('/quori/base_controller/cmd_vel', Twist, queue_size=10)
 
         self.listener = tf.TransformListener()
-<<<<<<< HEAD
-
-        self.action_server = actionlib.SimpleActionServer('drive_to_point', MoveBaseAction, self.execute_drive, False)
-        self.action_server.start()
-
-        #self.service = rospy.Service('/home_quori', Empty, self.home_quori_body)
-
-        # Align the orientation of the body with the wheel axle initially
-        # Doesnt seem to trigger everytime
-        # self.home_quori_body(None)
-=======
         self.home_quori_body(None)
         self.action_server = actionlib.SimpleActionServer('drive_to_point', MoveBaseAction, self.execute_drive, False)
         self.action_server.start()
@@ -63,7 +46,6 @@ class DriveAndHomeQuoriNode:
         # Align the orientation of the body with the wheel axle initially
         # Doesnt seem to trigger everytime
         #self.home_quori_body(None)
->>>>>>> 4093a0773ba07b59b563f4cc2fe1c3aca977f085
 
         rospy.loginfo("Drive and Home Quori Node ready")
 
@@ -130,8 +112,6 @@ class DriveAndHomeQuoriNode:
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
             rospy.logerr("Transform lookup failed: %s", e)
             return EmptyResponse()
-<<<<<<< HEAD
-=======
         
 
     def Random_facing_direction(self, req):
@@ -197,7 +177,6 @@ class DriveAndHomeQuoriNode:
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
             rospy.logerr("Transform lookup failed: %s", e)
             return EmptyResponse()
->>>>>>> 4093a0773ba07b59b563f4cc2fe1c3aca977f085
 
     def execute_drive(self, goal):
         target_x = goal.target_pose.pose.position.x
@@ -239,13 +218,6 @@ class DriveAndHomeQuoriNode:
                 if distance < DISTANCE_TOLLERANCE:
                     rospy.loginfo("Reached the goal!")
 
-<<<<<<< HEAD
-                    # Align the orientation of the body with the wheel axle
-                    self.home_quori_body(None)
-
-                    # Stop the robot
-                    twist.linear.x = 0
-=======
                     twist.linear.x = 0
 
                     # Assign a random facing direction
@@ -253,7 +225,6 @@ class DriveAndHomeQuoriNode:
                     # self.home_quori_body(None)
 
                     # Stop the robot
->>>>>>> 4093a0773ba07b59b563f4cc2fe1c3aca977f085
                     twist.angular.z = 0
                     self.cmd_vel_pub.publish(twist)
                     result = MoveBaseResult()
@@ -274,11 +245,7 @@ class DriveAndHomeQuoriNode:
                 else:
                     twist.linear.x = 0
 
-<<<<<<< HEAD
-                if abs(error_yaw) < 0.1:
-=======
                 if abs(error_yaw) < 0.3:
->>>>>>> 4093a0773ba07b59b563f4cc2fe1c3aca977f085
                     if distance > 0.25:
                         twist.linear.x = MAX_SPEED * np.log1p(distance - 1)  # Logarithmic ramp-up
                         twist.linear.x = min(twist.linear.x, MAX_SPEED)
