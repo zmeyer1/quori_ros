@@ -222,6 +222,7 @@ class DriveAndHomeQuoriNode:
 
                     # Assign a random facing direction
                     self.Random_facing_direction(None)
+                    # self.home_quori_body(None)
 
                     # Stop the robot
                     twist.angular.z = 0
@@ -238,11 +239,11 @@ class DriveAndHomeQuoriNode:
                 twist.angular.z = k_p_angular * error_yaw
                 twist.angular.z = min(max(twist.angular.z, -MAX_SPEED), MAX_SPEED)
 
-                # if abs(error_yaw) < 0.1:
-                #     twist.linear.x = k_p_linear * distance
-                #     twist.linear.x = min(twist.linear.x, MAX_SPEED)
-                # else:
-                #     twist.linear.x = 0
+                if abs(error_yaw) < 0.1:
+                    twist.linear.x = k_p_linear * distance
+                    twist.linear.x = min(twist.linear.x, MAX_SPEED)
+                else:
+                    twist.linear.x = 0
 
                 if abs(error_yaw) < 0.3:
                     if distance > 0.25:
