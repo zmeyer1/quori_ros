@@ -9,9 +9,10 @@ import subprocess
 from quori_osu.msg import UserKey
 
 lastest_question = "Waiting for message..."
+scale_type = "Triad"
 
 class GuiApp:
-    def __init__(self, root, next_service, next_value_publisher, id_publisher, key_publisher):
+    def __init__(self, root, next_service, next_value_publisher, id_publisher, key_publisher, scale_publisher):
         self.root = root
         self.root.title("ROS Noetic GUI")
         self.root.geometry("1280x720")
@@ -26,7 +27,8 @@ class GuiApp:
         self.next_service = next_service
         self.next_value_publisher = next_value_publisher
         self.id_publisher = id_publisher
-        self.key_publisher = key_publisher  # Store the key_publisher
+        self.key_publisher = key_publisher 
+        self.scale_publisher = scale_publisher        
 
         # Create the ID entry screen
         self.create_id_screen()
@@ -48,13 +50,37 @@ class GuiApp:
         self.int_entry = tk.Entry(self.id_frame, width=20, font=("Arial", 24))
         self.int_entry.pack(pady=10)
 
+        # Toggle Button for Scale Type
+        self.scale_toggle_button = tk.Button(
+            self.id_frame,
+            text="Scale: Triad",
+            font=("Arial", 24),
+            command=self.toggle_scale
+        )
+        self.scale_toggle_button.pack(pady=10)
+
         # Submit Button
         self.id_button = tk.Button(self.id_frame, text="Submit", font=("Arial", 24), command=self.publish_id)
         self.id_button.pack(pady=10)
 
+    def toggle_scale(self):
+        """Toggle between 1-3 and 1-5 scale types."""
+        global scale_type
+        if scale_type == "Triad":
+            scale_type = "Likart"
+            self.scale_toggle_button.config(text="Scale: Likart")
+        else:
+            scale_type = "Triad"
+            self.scale_toggle_button.config(text="Scale: Triad")
+
+        self.scale_toggle_button.pack(pady=10)
+
     def create_main_gui(self):
         """Set up the main GUI layout after the ID and integer are entered."""
         self.id_frame.destroy()  # Remove the ID entry widgets
+
+        # Publish the scale type when transitioning to the main GUI
+        self.scale_publisher.publish(scale_type)
 
         # Upper half text
         self.label = tk.Message(self.root, text="Waiting for message...", font=("Arial", 24), width=600)
@@ -71,16 +97,40 @@ class GuiApp:
         self.buttons = []
         self.selected_button = None  # Track the selected button
 
-        button_config = [
-            ("Too Slow", "#FF9999", "#FFCCCC"),        # Soft red and lighter soft red
-            ("Somewhat Slow", "#FFD1A6", "#FFE5CC"),   # Soft amber and lighter soft amber
-            ("Not Slow","#99FF99", "#CCFFCC"),        # Soft green and lighter soft green
-        ]
+        if scale_type == "Triad":
+            button_config = [
+                ("Too Slow", "#FF9999", "#FFCCCC"),        # Soft red and lighter soft red
+                ("Somewhat Slow", "#FFD1A6", "#FFE5CC"),   # Soft amber and lighter soft amber
+                ("Not Slow", "#99FF99", "#CCFFCC"),        # Soft green and lighter soft green
+            ]
 
-        # Use the same font and size as the submit button
-        button_font = ("Arial", 24)
-        button_width = 20
-        button_height = 2
+            # Use the same font and size as the submit button
+            button_font = ("Arial", 24)
+            button_width = 20
+            button_height = 2
+        else:
+            # Add title above the buttons when using 5-point scale
+            self.title_label = tk.Label(
+                self.container_frame,
+                text="The Interaction with Quori was Not Slow",
+                font=("Arial", 18),
+                fg="black",
+                pady=10
+            )
+            self.title_label.pack(pady=(10, 5))  # Add some padding for spacing
+
+            button_config = [
+                ("Strongly Disagree", "#FF9999", "#FFCCCC"),  # Soft red and lighter soft red
+                ("Disagree", "#FFD1A6", "#FFE5CC"),           # Soft amber and lighter soft amber
+                ("Neutral", "#FFFF99", "#FFFFCC"),            # Soft yellow and lighter soft yellow
+                ("Agree", "#99FF99", "#CCFFCC"),              # Soft green and lighter soft green
+                ("Strongly Agree", "#99FFCC", "#CCFFCC"),     # Soft green and lighter soft green
+            ]
+
+            # Use the same font and size as the submit button
+            button_font = ("Arial", 24)
+            button_width = 15
+            button_height = 2
 
         for i, (label, color, selected_color) in enumerate(button_config):
             btn = tk.Button(
@@ -96,7 +146,7 @@ class GuiApp:
             btn.pack(side=tk.LEFT, anchor=tk.CENTER, padx=5)
             self.buttons.append(btn)
 
-        self.next_service(EmptyRequest())
+        # self.next_service(EmptyRequest())
 
     def bring_to_front(self):
         """Bring the window to the front and ensure it stays on top."""
@@ -227,6 +277,9 @@ class GuiNode:
         # Initialize the publisher for /id_topic
         self.id_publisher = rospy.Publisher('/id_topic', String, queue_size=10, latch=True)
 
+        # Initialize the publisher for /scale_type
+        self.scale_publisher = rospy.Publisher('/scale_type', String, queue_size=10, latch=True)
+
         # Initialize the publisher for /id_topic
         self.key_publisher = rospy.Publisher('/key_id_topic', UserKey, queue_size=10, latch=True)
 
@@ -264,7 +317,7 @@ class GuiNode:
     def launch_gui(self):
         """Launch the Tkinter GUI application."""
         root = tk.Tk()
-        self.gui_app = GuiApp(root, self.next_service, self.next_value_publisher, self.id_publisher, self.key_publisher)
+        self.gui_app = GuiApp(root, self.next_service, self.next_value_publisher, self.id_publisher, self.key_publisher, self.scale_publisher)
         # Ensure the latest question is shown on screen immediately
         self.gui_app.update_label(self.latest_question)
         self.gui_app.run()

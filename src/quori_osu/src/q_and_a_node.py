@@ -37,7 +37,8 @@ key_id_string = "3"  # Default key_id value
 key_number = 3 # Default key number
 key_file_path = os.path.join(home_dir, f'Documents/q_and_a_json_files/key_{key_id_string}.json')
 csv_file_path = os.path.join(home_dir, 'Documents/q_and_a_response_logs', f'{id_string}_key{key_id_string}_log_{current_time}.csv')
-masterlist_file_path = os.path.join(home_dir, 'Documents/q_and_a_json_files/masterlist.json')
+masterlist_name = 'masterlist.json'
+masterlist_file_path = os.path.join(home_dir, 'Documents/q_and_a_json_files/', masterlist_name)
 
 
 # Global variables for questions and answers
@@ -64,6 +65,7 @@ current_complex_pub_index = 0
 next_button_count = 0
 current_delay = 0
 total_questions = 0
+scale_type = "Default"
 current_process = None
 task_queue = queue.Queue()
 introduction_played = False
@@ -207,6 +209,7 @@ def write_to_file():
     global current_complex_writing_index, current_simple_writing_index, current_audio_index
     rospy.loginfo("Writing data to CSV file. Current Text Index: %d vs Response List %d", current_text_index, len(response_list))
 
+
     log_index = len(response_list) - 1 
     original_question_id = question_id_list[log_index]  # Ensure correct indexing
     rating_index = response_list[-1] if response_list else None
@@ -234,12 +237,26 @@ def write_to_file():
         # current_audio_index += 1
     
     if rating_index is not None:
-        if rating_index == 0:
-            rating = "Too Slow"
-        elif rating_index == 1:
-            rating = "Somewhat Slow"
-        elif rating_index == 2:
-            rating = "Not Slow"
+        if scale_type == "Triad":
+            rospy.loginfo(f"Triad Writing")
+            if rating_index == 0:
+                rating = "Too Slow"
+            elif rating_index == 1:
+                rating = "Somewhat Slow"
+            elif rating_index == 2:
+                rating = "Not Slow"
+        else:
+            rospy.loginfo(f"Likart Writing")
+            if rating_index == 0:
+                rating = "Strongly Disagree"
+            elif rating_index == 1:
+                rating = "Disagree"
+            elif rating_index == 2:
+                rating = "Neutral"
+            elif rating_index == 3:
+                rating = "Agree"
+            elif rating_index == 4:
+                rating = "Strongly Agree"
 
     # Get the current system time
     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -250,13 +267,13 @@ def write_to_file():
     with open(csv_file_path, mode='a', newline='') as file:
         writer = csv.writer(file)
         if not file_exists:  # If the file doesn't exist, write the header
-            writer.writerow(['Question ID', 'Question', 'Answer', 'Complexity', 'Delay', 'Rating', 'Rating Index', 'Timestamp', 'Audio File'])
+            writer.writerow(['Question ID', 'Question', 'Answer', 'Complexity', 'Delay', 'Rating', 'Rating Index', 'Scale Type','Timestamp', 'Audio File', 'Masterlist'])
         
         # Append the actual data, including the original question ID
-        writer.writerow([original_question_id, current_question, current_answer, current_complexity, current_delay, rating, rating_index, current_time, current_audio_file])
+        writer.writerow([original_question_id, current_question, current_answer, current_complexity, current_delay, rating, rating_index, scale_type, current_time, current_audio_file, masterlist_name])
     
     rospy.loginfo(f"Data logged: Question ID: {original_question_id}, Question: {current_question}, Answer: {current_answer}, Complexity: {current_complexity}, "
-                  f"Delay: {current_delay}, Rating: {rating}, Rating Index: {rating_index}, Time: {current_time}, File: {current_audio_file}")
+                  f"Delay: {current_delay}, Rating: {rating}, Rating Index: {rating_index}, Scale Type: {scale_type} Time: {current_time}, File: {current_audio_file}, Masterlist: {masterlist_name}")
     
 
     # Check if we have exhausted all questions
@@ -303,6 +320,11 @@ def key_id_callback(data):
 
     # Update CSV file path to include the key_id
     update_csv_file_path()
+
+def scale_type_callback(data):
+    global scale_type
+    scale_type = data.data
+    rospy.loginfo(f"Received scale type: {scale_type}")
 
 
 # OG play_audio function
@@ -440,9 +462,9 @@ def publish_next_question():
         return
 
     # Ensure that the next button count is used to control publishing
-    if next_button_count >= current_text_index:
+    if next_button_count + 1 >= current_text_index:
         # This will ensure that the index is only updated if needed
-        if current_text_index < total_questions:
+        if current_text_index <= total_questions and len(response_list) < total_questions:
             if complexity_list[current_text_index] == 'complex':
                 # index = current_text_index - len(simple_question_list) - (len(complex_question_list) - len(simple_question_list))
                 index = current_complex_pub_index
@@ -514,6 +536,7 @@ def listener():
     rospy.Subscriber("/next_value", Int32, next_value_callback)
     # rospy.Subscriber('/id_topic', String, id_callback)
     rospy.Subscriber('/key_id_topic', UserKey, key_id_callback)
+    rospy.Subscriber('/scale_type', String, scale_type_callback)
     rospy.spin()
 
 
