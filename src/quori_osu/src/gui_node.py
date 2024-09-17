@@ -1,19 +1,28 @@
 #!/usr/bin/env python3
 
+# from quori_osu.srv._GetQuestion import GetQuestionRequest
 import rospy
-from std_srvs.srv import Empty, EmptyResponse, EmptyRequest
+from std_srvs.srv import Empty, EmptyResponse
+# from std_srvs.srv import Empty, EmptyResponse, EmptyRequest
 from threading import Thread
 import tkinter as tk
-from std_msgs.msg import String, Int32
+# from std_msgs.msg import String, Int32
 import subprocess
-from quori_osu.msg import UserKey
+# from quori_osu.msg import UserKey
+from quori_osu.srv import GetQuestion, KeyID, KeyIDRequest
+# from quori_osu.srv import GetQuestion, GetQuestionResponse, KeyID, KeyIDRequest, KeyIDResponse
 
+# Global variables
 lastest_question = "Waiting for message..."
 scale_type = "Triad"
 
 class GuiApp:
-    def __init__(self, root, next_service, next_value_publisher, id_publisher, key_publisher, scale_publisher):
+    """Main GUI application class."""
+
+    def __init__(self, root, question_service, key_id_service):
+        """Initialize the GUI application."""
         self.root = root
+
         self.root.title("ROS Noetic GUI")
         self.root.geometry("1280x720")
 
@@ -23,23 +32,13 @@ class GuiApp:
         # Bind the ESC key to exit fullscreen
         self.root.bind("<Escape>", self.exit_fullscreen)
 
-        # Store publishers and services
-        self.next_service = next_service
-        self.next_value_publisher = next_value_publisher
-        self.id_publisher = id_publisher
-        self.key_publisher = key_publisher 
-        self.scale_publisher = scale_publisher   
-
-        # self.qtimer = rospy.Timer(rospy.Duration(1.0), self.check_for_question)     
+        # Initialize services
+        self.question_service = question_service
+        self.key_id_service = key_id_service
 
         # Create the ID entry screen
         self.create_id_screen()
 
-    def check_for_question(self, event):
-        # If a new question has been received, update the GUI
-        global lastest_question
-        # if self is not None and self.latest_question != "Waiting for message...":
-        self.update_label(lastest_question)
 
     def create_id_screen(self):
         """Set up the screen to enter the ID and integer value."""
@@ -68,30 +67,38 @@ class GuiApp:
         self.scale_toggle_button.pack(pady=10)
 
         # Submit Button
-        self.id_button = tk.Button(self.id_frame, text="Submit", font=("Arial", 24), command=self.publish_id)
+        self.id_button = tk.Button(self.id_frame, text="Submit", font=("Arial", 24), command=self.send_key_id)
         self.id_button.pack(pady=10)
 
+
     def toggle_scale(self):
-        """Toggle between 1-3 and 1-5 scale types."""
+        """Toggle between 1-3 "Triad" and 1-5 "Likert" scale types."""
         global scale_type
+
         if scale_type == "Triad":
-            scale_type = "Likart"
-            self.scale_toggle_button.config(text="Scale: Likart")
+            scale_type = "Likert"
+            self.scale_toggle_button.config(text="Scale: Likert")
         else:
             scale_type = "Triad"
             self.scale_toggle_button.config(text="Scale: Triad")
 
         self.scale_toggle_button.pack(pady=10)
 
+
     def create_main_gui(self):
         """Set up the main GUI layout after the ID and integer are entered."""
-        self.id_frame.destroy()  # Remove the ID entry widgets
 
-        # Publish the scale type when transitioning to the main GUI
-        self.scale_publisher.publish(scale_type)
+        # Clear the ID entry frame
+        self.id_frame.destroy()
+
+        # Request the first question
+        response = self.question_service(-1)
+        lastest_question = response.question
+        rospy.loginfo(f"First question recived from service: {lastest_question}")
 
         # Upper half text
-        self.label = tk.Message(self.root, text="Waiting for message...", font=("Arial", 24), width=600)
+        self.label = tk.Message(self.root, text=lastest_question, font=("Arial", 24), width=600)
+        # self.label = tk.Message(self.root, text="Waiting for message...", font=("Arial", 24), width=600)
         self.label.pack(pady=20)
 
         # Container frame for buttons
@@ -154,8 +161,6 @@ class GuiApp:
             btn.pack(side=tk.LEFT, anchor=tk.CENTER, padx=5)
             self.buttons.append(btn)
 
-        self.update_label(lastest_question)
-        # self.next_service(EmptyRequest())
 
     def bring_to_front(self):
         """Bring the window to the front and ensure it stays on top."""
@@ -175,54 +180,72 @@ class GuiApp:
         except Exception as e:
             rospy.logwarn(f"Failed to bring window to front: {e}")
 
+
     def exit_fullscreen(self, event=None):
         """Exit fullscreen mode."""
         self.root.attributes('-fullscreen', False)
 
-    def publish_id(self):
-        """Publish the ID and integer value entered in the entry widgets."""
+
+    def send_key_id(self):
+        """Send the user ID, key ID, and scale type to the /key_id service."""
 
         # Remove any previous error messages
         for widget in self.id_frame.winfo_children():
             if isinstance(widget, tk.Label) and widget.cget("fg") == "red":
                 widget.destroy()  # Remove previous error messages
-
+        
         id_string = self.id_entry.get()
         int_value = self.int_entry.get()
 
         try:
             int_value = int(int_value)  # Attempt to convert to integer
-            rospy.loginfo(f"Attempting to publish integer value: {int_value}")
+            rospy.loginfo(f"Attempting to send key ID: {int_value}")
 
             # Check if the integer is within a valid range if needed
             if int_value < 0:  # Example check; modify as necessary
                 raise ValueError("Integer value must be non-negative.")
 
-            # Publish the key_id (integer value) separately without appending it to response_list
             if id_string:
-                user_key_msg = UserKey()
-                user_key_msg.user_id = id_string
-                user_key_msg.key_id = int_value
+                # Create the request for the KeyID service
+                key_id_srv = KeyIDRequest()  # Use KeyIDRequest instead of KeyID
+                key_id_srv.user_id = id_string
+                key_id_srv.key_id = int_value
+                key_id_srv.scale_type = scale_type
 
-                self.key_publisher.publish(user_key_msg)
-                rospy.loginfo(f"Published User ID: {id_string}, Key ID: {int_value}")
+                # Call the key_id_service with the request and capture the response
+                response = self.key_id_service(key_id_srv)
 
-            # rospy.sleep(1.0)
+                # Check the response
+                if response.success:
+                    rospy.loginfo(f"Service call successful: User ID: {id_string}, Key ID: {int_value}, Scale Type: {scale_type}")
+                    # Proceed to the main GUI if successful
+                    self.create_main_gui()
+                else:
+                    rospy.logerr("Service call failed. Success flag is false.")
+                    error_label = tk.Label(self.id_frame, text="Service call failed. Please try again.", fg="red", font=("Arial", 16))
+                    error_label.pack(pady=10)
 
-            # Only move to the main GUI if everything is valid
-            self.create_main_gui()
         except ValueError as e:
-            rospy.logerr(f"Invalid integer value entered: {e}. No value published.")
+            rospy.logerr(f"Invalid integer value entered: {e}. No value sent.")
 
             # Display an error message to the user
             error_label = tk.Label(self.id_frame, text="Please enter a valid integer.", fg="red", font=("Arial", 16))
             error_label.pack(pady=10)
             return
 
+        except rospy.ServiceException as e:
+            rospy.logerr(f"Service call to /key_id failed: {e}")
+
+            # Display an error message to the user
+            error_label = tk.Label(self.id_frame, text="Service call failed. Please try again.", fg="red", font=("Arial", 16))
+            error_label.pack(pady=10)
+            return
+
 
     def select_button(self, button_index):
-        """Select a button, trigger the 'Next' functionality, and reset buttons."""
+        """Handles button selection and question service call."""
         global lastest_question
+
         # Reset the previously selected button
         if self.selected_button is not None:
             self.buttons[self.selected_button].config(relief=tk.RAISED)
@@ -231,77 +254,73 @@ class GuiApp:
         self.selected_button = button_index
         self.buttons[button_index].config(relief=tk.SUNKEN)
 
-        # Execute the functionality previously in on_next
-        if lastest_question != "All Out of Questions":
-            rospy.loginfo("Button pressed in GUI")
-            try:
-                # Publish the selected button index as an integer
-                self.next_value_publisher.publish(self.selected_button)
+        try:
+            rospy.loginfo(f"Calling question service with selected button index: {self.selected_button}")
+            # Call the service with the selected button index
+            response = self.question_service(self.selected_button)  # Capture the response
+            lastest_question = response.question  # Update the latest question
+            self.update_label(lastest_question)  # Update the GUI with the new question
+        except rospy.ServiceException as e:
+            rospy.logerr(f"Failed to call question service: {e}")
 
-                self.next_service(EmptyRequest())
-                rospy.loginfo("Next service called successfully.")
-                rospy.loginfo(f"Published selected button index: {self.selected_button}")
-            except rospy.ServiceException as e:
-                rospy.logerr(f"Failed to call next service: {e}")
-
-        # Reset the selected button and all buttons' appearance
+        # Reset the selected button appearance
         self.buttons[self.selected_button].config(relief=tk.RAISED)
         self.selected_button = None
+
 
     def update_label(self, text):
         """Update the label with new text."""
         if hasattr(self, 'label'):
             self.label.config(text=text)
 
+
     def run(self):
         """Run the Tkinter main loop."""
         self.root.mainloop()
-        
+
+
     def close(self):
         """Close the application window safely."""
         rospy.signal_shutdown("Application window closed.")
         self.root.quit()  # Stop the main loop if it's running
         self.root.destroy()
 
+
 class GuiNode:
+    """ROS Node for the GUI application."""
+
     def __init__(self):
+        """Initialize the GUI Node."""
         rospy.init_node('gui_node')
         self.gui_app = None
         self.gui_thread = None
-
-        # Subscriber to the /questions topic
-        self.question_sub = rospy.Subscriber('/questions', String, self.question_callback)
         self.latest_question = "Waiting for message..."
 
         # Services to start and stop GUI
         self.start_service = rospy.Service('start_gui', Empty, self.start_gui)
         self.stop_service = rospy.Service('stop_gui', Empty, self.stop_gui)
 
-        # Initialize the service client for /next
-        self.next_service = rospy.ServiceProxy('/next', Empty)
+        # Initialize the service client for /get_question
+        rospy.wait_for_service('/get_question')
+        self.get_question_service = rospy.ServiceProxy('/get_question', GetQuestion, self.request_question)
 
-        # Initialize the publisher for /next_value
-        self.next_value_publisher = rospy.Publisher('/next_value', Int32, queue_size=10)
+        # Initialize the service client for /key_id
+        rospy.wait_for_service('/key_id')
+        self.key_id_service = rospy.ServiceProxy('/key_id', KeyID)
 
-        # Initialize the publisher for /key_value
-        # self.key_value_publisher = rospy.Publisher('/key_value', Int32, queue_size=10, latch=True)
 
-        # Initialize the publisher for /id_topic
-        self.id_publisher = rospy.Publisher('/id_topic', String, queue_size=10, latch=True)
-
-        # Initialize the publisher for /scale_type
-        self.scale_publisher = rospy.Publisher('/scale_type', String, queue_size=10, latch=True)
-
-        # Initialize the publisher for /id_topic
-        self.key_publisher = rospy.Publisher('/key_id_topic', UserKey, queue_size=10, latch=True)
-
-    def question_callback(self, msg):
-        """Callback to update the GUI label with the latest question."""
+    def request_question(self, req):
+        """Request a question from the service."""
         global lastest_question
-        self.latest_question = msg.data
-        lastest_question = self.latest_question
-        if self.gui_app is not None:
-            self.gui_app.update_label(self.latest_question)
+        try:
+            response = self.get_question_service(req)
+            lastest_question = response.question
+            print(f"New Question: {lastest_question}")
+            # Update your GUI with the received question
+            self.gui_app.update_label(lastest_question)
+        except rospy.ServiceException as e:
+            rospy.logerr(f"Service call failed: {e}")
+
 
     def start_gui(self, req):
         """Start the GUI application."""
@@ -312,6 +331,7 @@ class GuiNode:
         else:
             rospy.logwarn("GUI is already running")
         return EmptyResponse()
+
 
     def stop_gui(self, req):
         """Stop the GUI application."""
@@ -326,10 +346,12 @@ class GuiNode:
             rospy.logwarn("GUI is not running")
         return EmptyResponse()
 
+
     def launch_gui(self):
         """Launch the Tkinter GUI application."""
         root = tk.Tk()
-        self.gui_app = GuiApp(root, self.next_service, self.next_value_publisher, self.id_publisher, self.key_publisher, self.scale_publisher)
+        self.gui_app = GuiApp(root, self.get_question_service, self.key_id_service)
+        # self.gui_app = GuiApp(root, self.next_service, self.get_question_service, self.next_value_publisher, self.id_publisher, self.key_publisher, self.scale_publisher)
         # Ensure the latest question is shown on screen immediately
         self.gui_app.update_label(self.latest_question)
         self.gui_app.run()
@@ -339,6 +361,8 @@ class GuiNode:
         rospy.loginfo("GUI Node is running")
         rospy.spin()
 
+
 if __name__ == '__main__':
+    """Main entry point for the GUI Node."""
     node = GuiNode()
     node.run()

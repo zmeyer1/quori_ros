@@ -12,10 +12,13 @@ import signal
 from sensor_msgs.msg import Joy
 import tkinter as tk
 import queue
-from std_msgs.msg import String
+# from std_msgs.msg import String
 from std_srvs.srv import Empty, EmptyRequest
-from std_msgs.msg import Int32
-from quori_osu.msg import UserKey
+# from std_msgs.msg import Int32
+# from quori_osu.msg import UserKey
+from quori_osu.srv import GetQuestion, KeyID, KeyIDResponse
+# from quori_osu.srv import GetQuestion, GetQuestionResponse, KeyID, KeyIDResponse
+
 
 # Lists for questions and audio files
 # Pink Floyd - Dark Side of the Moon Testing
@@ -26,18 +29,24 @@ from quori_osu.msg import UserKey
 
 
 # Simple Questions from Survey
-# simple_audio_path = "/home/quori6/Music/simple_questions/"
 current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 home_dir = os.path.expanduser("~")
 simple_audio_path = os.path.join(home_dir, 'Music/simple_questions/')
 complex_audio_path = os.path.join(home_dir, 'Music/complex_questions/')
 introduction_file = os.path.join(simple_audio_path, "SimpleIntro.mp3")
+
+# Placeholders for KeyID info
 id_string = "default_id"  # Default value
-key_id_string = "3"  # Default key_id value
-key_number = 3 # Default key number
+key_id_string = "7"  # Default key_id value
+scale_type = "Triad"  # Default scale type
+# key_number = 7 # Default key number
+
+# Question masterlist filename (should be in the format *.json)
+masterlist_name = 'masterlist.json'
+
+# Default file paths for key and masterlist
 key_file_path = os.path.join(home_dir, f'Documents/q_and_a_json_files/key_{key_id_string}.json')
 csv_file_path = os.path.join(home_dir, 'Documents/q_and_a_response_logs', f'{id_string}_key{key_id_string}_log_{current_time}.csv')
-masterlist_name = 'masterlist.json'
 masterlist_file_path = os.path.join(home_dir, 'Documents/q_and_a_json_files/', masterlist_name)
 
 
@@ -74,8 +83,8 @@ updated_id = False
 all_questions_exhausted = False
 audio_playing = False
 
-# Initialize the audio output and delay
 def init():
+    """Initialize the audio output and set the delay for the first question."""
     global current_delay
 
     # Set the audio output to "Headphones - Built In Audio"
@@ -85,8 +94,8 @@ def init():
     current_delay = delay_times[random.randint(0, len(delay_times) - 1)]
 
 
-# Initialize the service clients
 def init_service_clients():
+    """Initialize the service clients for starting and stopping the GUI."""
     rospy.wait_for_service('start_gui')
     rospy.wait_for_service('stop_gui')
     start_gui_service = rospy.ServiceProxy('start_gui', Empty)
@@ -94,16 +103,16 @@ def init_service_clients():
     return start_gui_service, stop_gui_service
 
 
-# Set the audio output
 def set_audio_output(sink_name):
+    """Set the default audio output sink using pactl."""
     try:
         subprocess.run(['pactl', 'set-default-sink', sink_name], check=True)
     except subprocess.CalledProcessError as e:
         rospy.logerr(f"Failed to set audio output: {e}")
 
 
-# Load JSON data from a file
 def load_json_file(file_path, default_file_path=None):
+    """Load JSON data from a file, falling back to a default file if the primary file is not found."""
     try:
         with open(file_path, 'r') as file:
             return json.load(file)
@@ -116,8 +125,8 @@ def load_json_file(file_path, default_file_path=None):
             raise FileNotFoundError(f"Neither '{file_path}' nor a default file is available.")
 
 
-# Filter questions based on the key file and maintain the order
 def filter_questions(master_data, key_data):
+    """Filter questions from the master data based on the key data."""
     filtered_questions = []
     key_questions = key_data['questions']  # Get the list of question IDs from the key file
 
@@ -130,8 +139,8 @@ def filter_questions(master_data, key_data):
     return filtered_questions
 
 
-# Initialize the questions and answers based on the key data
 def initialize_questions_and_answers():
+    """Initialize the questions and answers based on the key data."""
     global simple_question_list, simple_answer_list, simple_audio_list
     global complex_question_list, complex_answer_list, complex_audio_list
     global question_id_list, complexity_list, total_questions
@@ -165,13 +174,11 @@ def initialize_questions_and_answers():
     rospy.loginfo(f"Total questions: {total_questions}")
     rospy.loginfo(f"Simple Questions: {len(simple_question_list)}, Complex Questions: {len(complex_question_list)}")
 
-    # Send the first question to the GUI
-    publish_next_question()
 
 # Functions
 
-# Monitor the console output for audio_playing status
 def monitor_console_output(command):
+    """Monitor the console output of a subprocess for specific strings."""
     global audio_playing
 
     # Start the subprocess with the command
@@ -195,20 +202,18 @@ def monitor_console_output(command):
     process.wait()
 
 
-# Get the CSV file path
 def update_csv_file_path():
+    """Update the CSV file path based on the user ID and key ID."""
     global csv_file_path
     csv_file_path = os.path.join(home_dir, 'Documents/q_and_a_response_logs', 
                                  f'{id_string}_key{key_id_string}_log_{current_time}.csv')
     rospy.loginfo(f"Updated CSV file path to: {csv_file_path}")
-  
 
-# Write to the CSV file
+
 def write_to_file():
     """Append the original question ID, current question, answer, delay, rating, and timestamp to a CSV file."""
     global current_complex_writing_index, current_simple_writing_index, current_audio_index
     rospy.loginfo("Writing data to CSV file. Current Text Index: %d vs Response List %d", current_text_index, len(response_list))
-
 
     log_index = len(response_list) - 1 
     original_question_id = question_id_list[log_index]  # Ensure correct indexing
@@ -246,7 +251,7 @@ def write_to_file():
             elif rating_index == 2:
                 rating = "Not Slow"
         else:
-            rospy.loginfo(f"Likart Writing")
+            rospy.loginfo(f"Likert Writing")
             if rating_index == 0:
                 rating = "Strongly Disagree"
             elif rating_index == 1:
@@ -279,56 +284,42 @@ def write_to_file():
     # Check if we have exhausted all questions
     # It needs to be here because its the last thing that happens in the order of functions
     if all_questions_exhausted:
-        rospy.loginfo("All out of questions.")
-        question_publisher.publish("All Out of Questions")
-
-# Callback function for the /next_value topic
-def next_value_callback(msg):
-    global response_list, current_delay, simple_question_list, complex_question_list
-    response_list.append(msg.data)
-
-    # You can add debugging info if needed to check the received values
-    rospy.loginfo(f"Received index: {msg.data}")
-
-    # Check if we have exhausted all questions
-    if len(response_list) <= len(simple_question_list) + len(complex_question_list):
-        write_to_file()
-    else:
-        rospy.loginfo("All questions have been answered. No more logging.")
-
-    # Update the current delay for the next question
-    current_delay = delay_times[random.randint(0, len(delay_times) - 1)]
+        rospy.loginfo("All out of questions nothing written to file.")   
 
 
-# Callback function for the key_id_topic
-def key_id_callback(data):
-    global key_id_string, key_file_path, key_data, id_string, updated_id
-    rospy.loginfo(f"Received User ID: {data.user_id}, Key ID: {data.key_id}")
-    key_id_string = data.key_id
-    id_string = data.user_id
-    rospy.loginfo(f"Received key_id: {key_id_string}")
+def handle_key_service(req):
+    """Handle the KeyID service request."""
+    global key_id_string, key_file_path, key_data, id_string, updated_id, scale_type
+    rospy.loginfo(f"Received User ID: {req.user_id}, Key ID: {req.key_id}, Scale Type: {req.scale_type}")
+
+    key_id_string = req.key_id
+    id_string = req.user_id
+    scale_type = req.scale_type  # If needed, handle `scale_type` for further logic
+    
     new_key_file_path = os.path.join(home_dir, f'Documents/q_and_a_json_files/key_{key_id_string}.json')
     
     # Load the new key file
-    key_data = load_json_file(new_key_file_path, key_file_path)
-    updated_id = True
-    key_file_path = new_key_file_path
-    initialize_questions_and_answers()
+    try:
+        key_data = load_json_file(new_key_file_path, key_file_path)
+        updated_id = True
+        key_file_path = new_key_file_path
+        initialize_questions_and_answers()
+        
+        # Log initialized data
+        rospy.loginfo(f"Simple Questions Initialized: {simple_question_list}")
+        rospy.loginfo(f"Complex Questions Initialized: {complex_question_list}")
+        
+        # Update CSV file path to include the key_id
+        update_csv_file_path()
 
-    rospy.loginfo(f"Simple Questions Initialized: {simple_question_list}")
-    rospy.loginfo(f"Complex Questions Initialized: {complex_question_list}")
-
-    # Update CSV file path to include the key_id
-    update_csv_file_path()
-
-def scale_type_callback(data):
-    global scale_type
-    scale_type = data.data
-    rospy.loginfo(f"Received scale type: {scale_type}")
+        return KeyIDResponse(success=True)
+    except Exception as e:
+        rospy.logerr(f"Error processing key file: {str(e)}")
+        return KeyIDResponse(success=False) 
 
 
-# OG play_audio function
 def play_audio(file_path):
+    """Original audio playing function."""
     global current_process
     current_process = subprocess.Popen(["mpg123", file_path])
 
@@ -359,8 +350,8 @@ def play_audio(file_path):
 #         audio_playing = False  # Reset flag when audio finishes playing
 
 
-# OG stop_audio function
 def stop_audio():
+    """Original stop audio function."""
     global current_process
     if current_process:
         current_process.terminate()
@@ -380,8 +371,8 @@ def stop_audio():
 #         rospy.loginfo("No audio is currently playing.")
 
 
-# Sends a service call to start the GUI Node
 def start_gui():
+    """Sends a service call to start the GUI Node."""
     try:
         start_gui_service(EmptyRequest())
         rospy.loginfo("Start GUI service called successfully.")
@@ -389,8 +380,8 @@ def start_gui():
         rospy.logerr(f"Failed to call start_gui service: {e}")
 
 
-# Sends a service call to stop the GUI Node but has some issues 
 def stop_gui():
+    """Sends a service call to stop the GUI Node."""
     try:
         stop_gui_service(EmptyRequest())
         rospy.loginfo("Stop GUI service called successfully.")
@@ -398,14 +389,13 @@ def stop_gui():
         rospy.loginfo("GUI is already stopped.")
 
 
-# Function to play the introduction audio
 def introduction():
+    """Function to play the introduction audio. Currently unused."""
     global introduction_file
     rospy.loginfo("Playing introduction.")
     play_audio(introduction_file)
 
 
-# Function to play audio after a delay using threading
 def play_with_delay(file_path, delay):
     """Function to play audio after a delay using threading."""
     def delayed_play():
@@ -416,15 +406,11 @@ def play_with_delay(file_path, delay):
 
     threading.Thread(target=delayed_play).start()
 
-# Function to play the next audio clip
 
 def play_next_audio_clip():
+    """Function to play the next audio clip based on the current audio index."""
     global current_audio_index, all_questions_exhausted, current_delay
 
-    rospy.loginfo("Playing clip %d...", current_audio_index)
-
-    # Ensure the audio index is within the correct range
-    # if current_audio_index < total_questions:
     if not all_questions_exhausted:  
         if complexity_list[current_audio_index] == 'complex':
             folder_path = os.path.expanduser(complex_audio_path)
@@ -434,63 +420,80 @@ def play_next_audio_clip():
             file_name = simple_audio_list[current_simple_writing_index]
 
         file_path = os.path.join(folder_path, file_name)
+        rospy.loginfo(f"Playing audio clip: {file_path}")
         play_with_delay(file_path, current_delay)
 
-        # Update the index after playing the audio
-        # current_audio_index += 1
     else:
         rospy.loginfo("All questions have been exhausted.")
         all_questions_exhausted = True
 
 
-# Function to publish the next question to the GUI
-def publish_next_question():
-    global current_text_index, next_button_count, current_audio_index, all_questions_exhausted, current_complex_pub_index, current_simple_pub_index
+def handle_question_request(req):
+    """Handle the question request from the service. Returns the next question as long as the question list hasnt been exhausted."""
+    global current_text_index, next_button_count, current_audio_index, all_questions_exhausted, current_complex_pub_index, current_simple_pub_index, response_list, current_delay
     rospy.loginfo(
-        f"Publish Next Question called \nNext Button Count: {next_button_count} vs Text Count: {current_text_index} vs Audio Count: {current_audio_index} vs Total Questions: {total_questions} vs Response List: {len(response_list)}")
+        f"Question Requested.\n Next Button Count: {next_button_count} vs Text Count: {current_text_index} vs Audio Count: {current_audio_index} vs Total Questions: {total_questions} vs Response List: {len(response_list)}")
     rospy.loginfo(f"Length of List: Simple: {len(simple_question_list)} and Complex: {len(complex_question_list)}")
-
-        # # If this is the last question, mark all questions as exhausted
-        # if current_text_index >= total_questions:
-        #     all_questions_exhausted = True
-        #     rospy.loginfo("All questions published. Setting all_questions_exhausted to True.")
 
     # Check if we have exhausted all questions
     if all_questions_exhausted:
         rospy.loginfo("All out of questions.")
-        question_publisher.publish("All Out of Questions")
-        return
+        #question_publisher.publish("All Out of Questions")
+        return "All Out of Questions"
 
-    # Ensure that the next button count is used to control publishing
-    if next_button_count + 1 >= current_text_index:
-        # This will ensure that the index is only updated if needed
-        if current_text_index <= total_questions and len(response_list) < total_questions:
-            if complexity_list[current_text_index] == 'complex':
-                # index = current_text_index - len(simple_question_list) - (len(complex_question_list) - len(simple_question_list))
-                index = current_complex_pub_index
-                question = complex_question_list[index]
-                current_complex_pub_index += 1
-            else:
-                # index = current_text_index - len(complex_question_list) - (len(simple_question_list) - len(complex_question_list))
-                index = current_simple_pub_index
-                question = simple_question_list[index]
-                current_simple_pub_index += 1
-            rospy.loginfo(f"Publishing question at index {index}: {question}")
-            question_publisher.publish("Question: \n Hey Quori, " + question)
-            current_audio_index = current_text_index
-            current_text_index += 1
+    response = req.rating
 
-            # If this is the last question, mark all questions as exhausted
-            if current_text_index > total_questions:
-                all_questions_exhausted = True
-                rospy.loginfo("All questions published. Setting all_questions_exhausted to True.")
+    # If the response is not -1, it means we received a rating
+    # -1 is used as a placeholder for the first question
+    if response != -1:
+        response_list.append(response)
+
+        # You can add debugging info if needed to check the received values
+        rospy.loginfo(f"Received index: {response}")
+
+        # Check if we have exhausted all questions
+        if len(response_list) <= len(simple_question_list) + len(complex_question_list):
+            write_to_file()
         else:
+            rospy.loginfo("All questions have been answered. No more logging.")
+    else:
+        rospy.loginfo("First question requested received.")
+
+    # Update the current delay for the next question
+    current_delay = delay_times[random.randint(0, len(delay_times) - 1)]
+    
+    # Check if we have exhausted all questions
+    if current_text_index < total_questions and len(response_list) < total_questions:
+        if complexity_list[current_text_index] == 'complex':
+            # index = current_text_index - len(simple_question_list) - (len(complex_question_list) - len(simple_question_list))
+            index = current_complex_pub_index
+            question = complex_question_list[index]
+            current_complex_pub_index += 1
+        else:
+            # index = current_text_index - len(complex_question_list) - (len(simple_question_list) - len(complex_question_list))
+            index = current_simple_pub_index
+            question = simple_question_list[index]
+            current_simple_pub_index += 1
+        rospy.loginfo(f"Sending question at index {index}: {question}")
+        # question_publisher.publish("Question: \n Hey Quori, " + question)
+
+        current_audio_index = current_text_index
+        current_text_index += 1
+
+        # If this is the last question, mark all questions as exhausted
+        if current_text_index > total_questions:
             all_questions_exhausted = True
-            rospy.loginfo("No more questions to publish.")
+            rospy.loginfo("All questions sent. Setting all_questions_exhausted to True.")
+    else:
+        all_questions_exhausted = True
+        rospy.loginfo("All Out of Questions")
+        question = "All Out of Questions"
+
+    return question
 
 
-# Callback function for the controller
 def joy_callback(data):
+    """Callback function for joystick input."""
     global introduction_played, gui_started
 
     # Start button for introduction or next question
@@ -527,21 +530,16 @@ def joy_callback(data):
         rospy.loginfo("Start and Select buttons pressed.")
         task_queue.put(stop_gui)
         signal_handler(None, None)  # Call the signal handler to shut down
+
         
-
-
-# Setup the listeners 
 def listener():
+    """Listener function for joystick input. Its broken up this way so this can run in a separate thread."""
     rospy.Subscriber("/joy", Joy, joy_callback)
-    rospy.Subscriber("/next_value", Int32, next_value_callback)
-    # rospy.Subscriber('/id_topic', String, id_callback)
-    rospy.Subscriber('/key_id_topic', UserKey, key_id_callback)
-    rospy.Subscriber('/scale_type', String, scale_type_callback)
     rospy.spin()
 
 
-# Process the tasks in the task queue
 def process_tasks():
+    """"Process tasks in the task queue. Used for threading with tkinter."""
     try:
         while not task_queue.empty():
             task = task_queue.get_nowait()
@@ -551,31 +549,18 @@ def process_tasks():
     root.after(100, process_tasks)
 
 
-# Signal handler to catch the shutdown signal
 def signal_handler(sig, frame):
+    """Handle the shutdown signal."""
     rospy.signal_shutdown("Shutdown signal received.")
     root.quit()  # Stop the Tkinter main loop
 
 
-# Callback function for the /next service
-def next_service_callback(req):
-    global next_button_count
-    
-    publish_next_question()
-    next_button_count += 1
-    rospy.loginfo(f"Received /next service call. Count: {next_button_count}")
-    return []
-
-
-# Main function
 if __name__ == '__main__':
+    """Main function to initialize the ROS node and start the GUI."""
+    
     # Initialize the ROS node
     rospy.init_node('q_and_a', anonymous=True)
     rospy.loginfo("Q&A node started.")
-
-    # Initialize the question publisher
-    question_publisher = rospy.Publisher('/questions', String, queue_size=10, latch=True)
-
     init()
 
     # Initialize the service clients
@@ -586,13 +571,16 @@ if __name__ == '__main__':
 
     root.after(100, process_tasks)
 
+    # Monitor console output in a separate thread if needed. This was an attempt to monitor audio playback.
     # monitor_thread = threading.Thread(target=monitor_console_output, args=(current_process,))
     # monitor_thread.start()
 
+    # Seperate thread for listening to the joy controller commands 
     listener_thread = threading.Thread(target=listener)
     listener_thread.start()
 
-    rospy.Service('/next', Empty, next_service_callback)
+    rospy.Service('/get_question', GetQuestion, handle_question_request)
+    rospy.Service('/key_id', KeyID, handle_key_service)
 
     signal.signal(signal.SIGINT, signal_handler)  # Catch the shutdown signal
 

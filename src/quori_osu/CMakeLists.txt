@@ -57,11 +57,11 @@ add_message_files(
 )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+add_service_files(
+  FILES
+  GetQuestion.srv
+  KeyID.srv
+)
 
 ## Generate actions in the 'action' folder
 add_action_files(
@@ -109,7 +109,7 @@ catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES quori_osu
 #  CATKIN_DEPENDS roscpp rospy std_msgs
-  CATKIN_DEPENDS message_runtime
+  CATKIN_DEPENDS message_runtime std_msgs
 #  DEPENDS system_lib
 )
 

@@ -1,0 +1,6 @@
+# The request is the rating the user selected for the gui
+# If -1 then its the inital question request 
+int64 rating
+---
+# The response is the next question in the list
+string question
