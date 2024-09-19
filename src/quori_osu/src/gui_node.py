@@ -84,6 +84,81 @@ class GuiApp:
 
         self.scale_toggle_button.pack(pady=10)
 
+    # def create_main_gui(self):
+    #     """Set up the main GUI layout after the ID and integer are entered."""
+
+    #     # Clear the ID entry frame
+    #     self.id_frame.destroy()
+
+    #     # Request the first question
+    #     response = self.question_service(-1)
+    #     lastest_question = response.question
+    #     rospy.loginfo(f"First question recived from service: {lastest_question}")
+
+    #     # Upper half text
+    #     self.label = tk.Message(self.root, text=lastest_question, font=("Arial", 24), width=600)
+    #     self.label.pack(pady=20)
+
+    #     # Container frame for buttons and title label
+    #     self.container_frame = tk.Frame(self.root)
+    #     self.container_frame.pack(expand=True)  # Center the frame vertically
+
+    #     # Title label for interaction question
+    #     self.title_label = tk.Label(
+    #         self.container_frame,
+    #         text="Was that interaction too slow?",  # Move this label above the buttons
+    #         font=("Arial", 18),
+    #         fg="black",
+    #         pady=10
+    #     )
+    #     self.title_label.pack(pady=(10, 5))  # Add some padding for spacing
+
+    #     # Buttons frame
+    #     self.frame = tk.Frame(self.container_frame)
+    #     self.frame.pack(side=tk.TOP, pady=20)
+
+    #     self.buttons = []
+    #     self.selected_button = None  # Track the selected button
+
+    #     if scale_type == "Triad":
+    #         button_config = [
+    #             ("Too Slow", "#FF9999", "#FFCCCC"),        # Soft red and lighter soft red
+    #             ("Somewhat Slow", "#FFD1A6", "#FFE5CC"),   # Soft amber and lighter soft amber
+    #             ("Not Slow", "#99FF99", "#CCFFCC"),        # Soft green and lighter soft green
+    #         ]
+
+    #         # Use the same font and size as the submit button
+    #         button_font = ("Arial", 24)
+    #         button_width = 20
+    #         button_height = 2
+    #     else:
+    #         # Add title above the buttons when using 5-point scale
+    #         button_config = [
+    #             ("Strongly Disagree", "#FF9999", "#FFCCCC"),  # Soft red and lighter soft red
+    #             ("Disagree", "#FFD1A6", "#FFE5CC"),           # Soft amber and lighter soft amber
+    #             ("Neutral", "#FFFF99", "#FFFFCC"),            # Soft yellow and lighter soft yellow
+    #             ("Agree", "#99FF99", "#CCFFCC"),              # Soft green and lighter soft green
+    #             ("Strongly Agree", "#99FFCC", "#CCFFCC"),     # Soft green and lighter soft green
+    #         ]
+
+    #         # Use the same font and size as the submit button
+    #         button_font = ("Arial", 24)
+    #         button_width = 15
+    #         button_height = 2
+
+    #     for i, (label, color, selected_color) in enumerate(button_config):
+    #         btn = tk.Button(
+    #             self.frame,
+    #             text=label,
+    #             width=button_width,
+    #             height=button_height,
+    #             bg=color,
+    #             activebackground=selected_color,  # Use the selected_color for active background
+    #             font=button_font,  # Same font as the submit button
+    #             command=lambda b=i: self.select_button(b)
+    #         )
+    #         btn.pack(side=tk.LEFT, anchor=tk.CENTER, padx=5)
+    #         self.buttons.append(btn)
 
     def create_main_gui(self):
         """Set up the main GUI layout after the ID and integer are entered."""
@@ -94,16 +169,33 @@ class GuiApp:
         # Request the first question
         response = self.question_service(-1)
         lastest_question = response.question
-        rospy.loginfo(f"First question recived from service: {lastest_question}")
+        rospy.loginfo(f"First question received from service: {lastest_question}")
 
-        # Upper half text
-        self.label = tk.Message(self.root, text=lastest_question, font=("Arial", 24), width=600)
-        # self.label = tk.Message(self.root, text="Waiting for message...", font=("Arial", 24), width=600)
-        self.label.pack(pady=20)
+        # Container frame for the question label and the question itself
+        self.question_frame = tk.Frame(self.root)
+        self.question_frame.pack(pady=20)
 
-        # Container frame for buttons
+        # Add a label that says "Question:" above the actual question
+        self.question_label = tk.Label(self.question_frame, text="Question:", font=("Arial", 24), fg="black")
+        self.question_label.pack()
+
+        # Display the actual question
+        self.label = tk.Message(self.question_frame, text=lastest_question, font=("Arial", 24), width=600)
+        self.label.pack(pady=10)
+
+        # Container frame for buttons and title label
         self.container_frame = tk.Frame(self.root)
         self.container_frame.pack(expand=True)  # Center the frame vertically
+
+        # Title label for interaction question
+        self.title_label = tk.Label(
+            self.container_frame,
+            text="Was that interaction too slow?",  # This label is now above the buttons
+            font=("Arial", 18),
+            fg="black",
+            pady=10
+        )
+        self.title_label.pack(pady=(10, 5))  # Add some padding for spacing
 
         # Buttons frame
         self.frame = tk.Frame(self.container_frame)
@@ -124,22 +216,12 @@ class GuiApp:
             button_width = 20
             button_height = 2
         else:
-            # Add title above the buttons when using 5-point scale
-            self.title_label = tk.Label(
-                self.container_frame,
-                text="The Interaction with Quori was Not Slow",
-                font=("Arial", 18),
-                fg="black",
-                pady=10
-            )
-            self.title_label.pack(pady=(10, 5))  # Add some padding for spacing
-
             button_config = [
-                ("Strongly Disagree", "#FF9999", "#FFCCCC"),  # Soft red and lighter soft red
-                ("Disagree", "#FFD1A6", "#FFE5CC"),           # Soft amber and lighter soft amber
-                ("Neutral", "#FFFF99", "#FFFFCC"),            # Soft yellow and lighter soft yellow
-                ("Agree", "#99FF99", "#CCFFCC"),              # Soft green and lighter soft green
-                ("Strongly Agree", "#99FFCC", "#CCFFCC"),     # Soft green and lighter soft green
+                ("Strongly Disagree", "#FF8981", "#FFCCC7"),  # Softer red and lighter soft red
+                ("Disagree", "#FFB54C", "#FFD6A1"),           # Same orange and lighter orange
+                ("Neutral", "#F8D66D", "#FAE6A8"),            # Same yellow and lighter yellow
+                ("Agree", "#8CD47E", "#C4E6C1"),              # Same green and lighter green
+                ("Strongly Agree", "#6FAF72", "#AFCFB2"),     # Darker green and lighter green
             ]
 
             # Use the same font and size as the submit button
