@@ -11,6 +11,7 @@ import threading
 import signal
 from sensor_msgs.msg import Joy
 import tkinter as tk
+from PIL import Image, ImageTk
 import queue
 # from std_msgs.msg import String
 from std_srvs.srv import Empty, EmptyRequest
@@ -176,6 +177,34 @@ def initialize_questions_and_answers():
 
 
 # Functions
+
+def show_image_fullscreen(image_name):
+    # Create a new Tkinter window
+    root = tk.Tk()
+    
+    # Make the window fullscreen
+    root.attributes('-fullscreen', True)
+    
+    # Load the image from the Pictures folder
+    image_path = os.path.expanduser(f'~/Pictures/{image_name}')
+    image = Image.open(image_path)
+    
+    # Convert the image to a format Tkinter can use
+    tk_image = ImageTk.PhotoImage(image)
+    
+    # Create a label to display the image
+    label = tk.Label(root, image=tk_image)
+    label.pack(expand=True)
+    
+    # Bring the window to the front
+    root.lift()
+    root.attributes('-topmost', True)
+    
+    # Bind the 'Escape' key to close the window
+    root.bind("<Escape>", lambda e: root.quit())
+    
+    # Start the Tkinter main loop
+    root.mainloop()
 
 def monitor_console_output(command):
     """Monitor the console output of a subprocess for specific strings."""
@@ -583,6 +612,8 @@ if __name__ == '__main__':
     rospy.Service('/key_id', KeyID, handle_key_service)
 
     signal.signal(signal.SIGINT, signal_handler)  # Catch the shutdown signal
+
+    # show_image_fullscreen('racoon_astro_eyes.jpeg')
 
     root.mainloop()
     listener_thread.join()  # Ensure the listener thread completes before exiting

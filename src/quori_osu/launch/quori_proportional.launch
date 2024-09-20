@@ -10,11 +10,7 @@
     <include file="$(find quori_launch)/launch/mapping.launch" />
 
     <!-- Launch RViz with the specified configuration file -->
-<<<<<<< HEAD
-    <node name="rviz" pkg="rviz" type="rviz" args="-d /opt/quori/src/quori_osu/launch/quori.rviz" />
-=======
     <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d /opt/quori/src/quori_osu/launch/quori.rviz" /> -->
->>>>>>> 4093a0773ba07b59b563f4cc2fe1c3aca977f085
 
     <node pkg="quori_osu" type="drive_to_xy_node.py" name="drive_to_xy_node" output="screen"/>
 

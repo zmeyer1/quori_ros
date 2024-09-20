@@ -11,6 +11,8 @@
     <!-- <include file="$(find respeaker_ros)/launch/sample_respeaker.launch" /> -->
     
     <include file="$(find quori_launch)/launch/mapping.launch" />
+
+    <!-- <node pkg="quori_osu" type="q_and_a_node.py" name="q_and_a_node" output="screen"/> -->
     
     <!-- Launch RViz with the specified configuration file -->
     <node name="rviz" pkg="rviz" type="rviz" args="-d /opt/quori/src/quori_osu/launch/quori.rviz" />
