@@ -1,6 +1,6 @@
-# quori_ros
+# quori_ros (zmeyer1 -- WORKING VERSION)
 
-This catkin workspace contains all of the ROS packages necessary for full operation of the Quori robot platform from UPenn.
+This catkin workspace contains all of the ROS packages necessary for full operation of the Quori robot platform from UPenn. Added functionality for OSU
 
 ## Prerequisites
 
