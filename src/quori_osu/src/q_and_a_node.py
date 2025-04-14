@@ -164,7 +164,8 @@ def initialize_questions_and_answers():
 def update_csv_file_path():
     """Update the CSV file path based on the user ID and key ID."""
     global csv_file_path
-    csv_file_path = os.path.join(logging_location, f'{id_string}_key{key_id_string}_log_{current_time}.csv')
+    date_time = '_'.join('-'.join(current_time.split(':')).split())
+    csv_file_path = os.path.join(logging_location, f"{id_string}_key{key_id_string}_log_{date_time}.csv")
     rospy.loginfo(f"Updated CSV file path to: {csv_file_path}")
 
 
