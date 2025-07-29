@@ -412,8 +412,9 @@ class GuiApp:
                 for btn in self.buttons:
                     btn.destroy()
                 self.title_label.destroy()
+                self.complex_label.destroy()
                 self.question_label.destroy()
-
+                self.submit_button.destroy()
                 self.thank_you_text = tk.Label(
                 self.container_frame,
                 text="Thank you for your Participation!",
