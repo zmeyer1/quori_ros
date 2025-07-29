@@ -5,13 +5,13 @@ from std_srvs.srv import Empty, EmptyResponse
 import sys
 from threading import Thread
 import tkinter as tk
+from tkinter import ttk
 import subprocess
 import random
 import time
 from quori_osu.srv import GetQuestion, KeyID, KeyIDRequest
 
 # Global variables
-lastest_question = "Waiting for message..." # Default message
 scale_type = "Likert" # Default scale type
 
 # Color constants
@@ -21,6 +21,8 @@ LIGHT_GREEN = "#C4E6C1"
 
 class GuiApp:
     """Main GUI application class."""
+
+    latest_question = "Waiting for message..." # Default message
 
     def __init__(self, root, question_service, key_id_service, question_label):
         """Initialize the GUI application."""
@@ -48,6 +50,23 @@ class GuiApp:
         # Initialize services
         self.question_service = question_service
         self.key_id_service = key_id_service
+
+        # Configure Radiobuttons
+        s = ttk.Style()
+        s.theme_use('default')
+
+        s.layout('TRadiobutton',
+                [('Radiobutton.padding',
+                {'children':
+                    [('Radiobutton.indicator', {'side': 'top', 'sticky': ''}), # Just need to change indicator's 'side' value
+                    ('Radiobutton.focus', {'side': 'left',
+                                            'children':
+                                            [('Radiobutton.label', {'sticky': 'nswe'})],
+                                            'sticky': ''})],
+                    'sticky': 'nswe'})])
+        
+        s.configure('TRadiobutton', font=('Arial', 18), background=LIGHT_BLUE, foreground='black', padding=10)
+
 
         # Create the ID entry screen
         self.create_id_screen()
@@ -127,9 +146,9 @@ class GuiApp:
         self.id_frame.destroy()
 
         # Request the first question
-        response = self.question_service(-1)
-        lastest_question = response.question
-        rospy.loginfo(f"First question received from service: {lastest_question}")
+        response = self.question_service(-1, -1)
+        self.latest_question = response.question
+        rospy.loginfo(f"First question received from service: {self.latest_question}")
 
         # Container frame for the question label and the question itself
         self.question_frame = tk.Frame(self.root, bg=LIGHT_BLUE)
@@ -140,7 +159,7 @@ class GuiApp:
         self.question_label.pack()
 
         # Display the actual question
-        self.label = tk.Message(self.question_frame, text=lastest_question, font=("Arial", 24), width=600, bg=LIGHT_BLUE)
+        self.label = tk.Message(self.question_frame, text=self.latest_question, font=("Arial", 24), width=600, bg=LIGHT_BLUE)
         self.label.pack(pady=10)
 
         # Container frame for buttons and title label
@@ -169,21 +188,21 @@ class GuiApp:
             )
         self.title_label.pack(pady=(10, 5))  # Add some padding for spacing
 
-        # Buttons frame
-        self.frame = tk.Frame(self.container_frame, bg=LIGHT_BLUE)
-        self.frame.pack(side=tk.TOP, pady=20)
+        # Upper frame
+        self.upper_frame = tk.Frame(self.container_frame, bg=LIGHT_BLUE)
+        self.upper_frame.pack(side=tk.TOP, pady=20)
 
-        width = self.frame.winfo_width()
-        height = self.frame.winfo_height()
+        width = self.upper_frame.winfo_width()
+        height = self.upper_frame.winfo_height()
         
         self.buttons = []
         self.selected_button = None  # Track the selected button
 
         if scale_type == "Triad":
             button_config = [
-                ("   Too Slow  ", "#FF9999", "#FFCCCC"),        # Soft red and lighter soft red
+                ("Too Slow  ", "#FF9999", "#FFCCCC"),        # Soft red and lighter soft red
                 ("Somewhat Slow", "#FFD1A6", "#FFE5CC"),   # Soft amber and lighter soft amber
-                ("   Not Slow  ", "#99FF99", "#CCFFCC"),        # Soft green and lighter soft green
+                ("Not Slow", "#99FF99", "#CCFFCC"),        # Soft green and lighter soft green
             ]
 
             # Use the same font and size as the submit button
@@ -192,44 +211,81 @@ class GuiApp:
             button_height = height // 6
         else:
             button_config = [
+                ("Totally Disagree", "#FF8981", "#FFCCC7"),  # Softer red and lighter soft red
                 ("Strongly Disagree", "#FF8981", "#FFCCC7"),  # Softer red and lighter soft red
-                ("     Disagree    ", "#FFB54C", "#FFD6A1"),           # Same orange and lighter orange
-                ("      Neutral    ", "#F8D66D", "#FAE6A8"),            # Same yellow and lighter yellow
-                ("       Agree     ", GREEN, LIGHT_GREEN),              # Same green and lighter green
-                ("  Strongly Agree ", "#6FAF72", "#AFCFB2"),     # Darker green and lighter green
+                ("Disagree", "#FFB54C", "#FFD6A1"),           # Same orange and lighter orange
+                ("Neutral", "#F8D66D", "#FAE6A8"),            # Same yellow and lighter yellow
+                ("Agree", GREEN, LIGHT_GREEN),              # Same green and lighter green
+                ("Strongly Agree", "#6FAF72", "#AFCFB2"),     # Darker green and lighter green
+                ("Totally Agree", "#6FAF72", "#AFCFB2"),     # Darker green and lighter green
             ]
 
             # Use the same font and size as the submit button
-            button_font = ("Arial", 20)
+            button_font = ("Arial", 16)
             button_width = width // 6
             button_height = height // 6
 
+        self.selected_rating = tk.IntVar(value=-1)
+        self.selected_complexity = tk.IntVar(value=-1)
+
         for i, (label, color, selected_color) in enumerate(button_config):
-            btn = tk.Button(
-                self.frame,
+            btn = ttk.Radiobutton(
+                self.upper_frame,
                 text=label,
-                width=button_width,
-                height=button_height,
-                bg=color,
-                activebackground=selected_color,  # Use the selected_color for active background
-                font=button_font,  # Same font as the submit button
-                command=lambda b=i: self.select_button(b)
+                variable=self.selected_rating,
+                value=i,
             )
             btn.pack(side=tk.LEFT, anchor=tk.CENTER, padx=5)
             self.buttons.append(btn)
 
+        self.lower_frame = tk.Frame(self.container_frame, bg=LIGHT_BLUE)
+        self.lower_frame.pack(side=tk.TOP, pady=20)
+
+        # Complexity Score Question
+        self.complex_label = tk.Label(
+                self.lower_frame,
+                text="The question asked to Quori was complex",
+                font=("Arial", 18),
+                fg="black",
+                pady=10,
+                bg=LIGHT_BLUE,
+            )
+        self.complex_label.pack(anchor=tk.CENTER)  # Add some padding for spacing
+
+        for i, (label, color, selected_color) in enumerate(button_config):
+            btn = ttk.Radiobutton(
+                self.lower_frame,
+                text=label,
+                variable=self.selected_complexity,
+                value=i,
+            )
+            btn.pack(side=tk.LEFT, padx=5)
+            self.buttons.append(btn)
+
+
+        # Add a submit button to send the selected rating
+        self.submit_button = tk.Button(
+            self.container_frame,
+            text="Submit",
+            font=("Arial", 24),
+            command=self.submit_rating,
+            bg=GREEN,
+            activebackground=LIGHT_GREEN,
+        )
+        self.submit_button.pack(pady=10)
+
 
         # Adjust row height and column width for responsiveness
         for col in range(5):
-            self.frame.grid_columnconfigure(col, weight=1)
+            self.upper_frame.grid_columnconfigure(col, weight=1)
 
-        self.frame.update_idletasks()
+        self.upper_frame.update_idletasks()
 
 
     def calculate_dynamic_font_size(self):
         """Calculate a dynamic font size based on available space."""
-        width = self.frame.winfo_width()  # Get the width of the button container frame
-        available_width = width // 5  # Divide by 5 because we have 5 buttons
+        width = self.upper_frame.winfo_width()  # Get the width of the button container frame
+        available_width = width // 5  # Divide by 5 because we have 5 buttons TODO: this isn't dynamic...
         font_size = available_width // 10  # Adjust this ratio to get the ideal font size
         
         # Ensure a minimum font size to prevent being too small
@@ -328,65 +384,26 @@ class GuiApp:
             return
 
 
-    # def select_button(self, button_index):
-    #     """Handles button selection and question service call."""
-    #     global lastest_question
-
-    #     # Reset the previously selected button
-    #     if self.selected_button is not None:
-    #         self.buttons[self.selected_button].config(relief=tk.RAISED)
-
-    #     # Highlight the selected button
-    #     self.selected_button = button_index
-    #     self.buttons[button_index].config(relief=tk.SUNKEN)
-
-    #     try:
-    #         rospy.loginfo(f"Calling question service with selected button index: {self.selected_button}")
-    #         # Call the service with the selected button index
-    #         response = self.question_service(self.selected_button)  # Capture the response
-    #         lastest_question = response.question  # Update the latest question
-    #         self.update_label(lastest_question)  # Update the GUI with the new question
-    #     except rospy.ServiceException as e:
-    #         rospy.logerr(f"Failed to call question service: {e}")
-
-    #     # Reset the selected button appearance
-    #     self.buttons[self.selected_button].config(relief=tk.RAISED)
-    #     self.selected_button = None
-
-    def select_button(self, button_index):
-        """Handles button selection and question service call."""
-        global lastest_question
-
-        # Reset the previously selected button if the buttons still exits
-        if self.selected_button is not None and self.selected_button < len(self.buttons):
-            try:
-                self.buttons[self.selected_button].config(relief=tk.RAISED)
-            except Exception as e:
-                # rospy.logwarn(f"Error resetting button state: {e}")
-                return
-
-        # Highlight the selected button, ensure the index is valid
-        if 0 <= button_index < len(self.buttons):
-            self.selected_button = button_index
-            self.buttons[button_index].config(relief=tk.SUNKEN)
-
-            try:
-                rospy.loginfo(f"Calling question service with selected button index: {self.selected_button}")
-                # Call the service with the selected button index
-                response = self.question_service(self.selected_button)  # Capture the response
-                lastest_question = response.question  # Update the latest question
-                self.update_label(lastest_question)  # Update the GUI with the new question
-            except rospy.ServiceException as e:
-                rospy.logerr(f"Failed to call question service: {e}")
-        
-        # Reset the selected button appearance at the end, if still valid
-        if self.selected_button is not None and self.selected_button < len(self.buttons):
-            try:
-                self.buttons[self.selected_button].config(relief=tk.RAISED)
-            except Exception as e:
-                rospy.logwarn(f"Error resetting button state: {e}")
-        self.selected_button = None
-
+    def submit_rating(self):
+        """Submit the selected rating and call the question service."""
+        selected_rating = self.selected_rating.get()
+        selected_complexity = self.selected_complexity.get()
+        if selected_rating == -1 or selected_complexity == -1:
+            rospy.logwarn("No rating or complexity selected. Please select a rating before submitting.")
+            return
+        self.submit_button.config(relief=tk.SUNKEN)
+        try:
+            rospy.loginfo(f"Calling question service with selected button index: {selected_rating}")
+            # Call the service with the selected button index
+            response = self.question_service(selected_rating, selected_complexity)  # Capture the response
+            self.latest_question = response.question  # Update the latest question
+            self.update_label(self.latest_question)  # Update the GUI with the new question
+        except rospy.ServiceException as e:
+            rospy.logerr(f"Failed to call question service: {e}")
+        self.submit_button.config(relief=tk.RAISED)
+        self.selected_rating.set(-1)
+        self.selected_complexity.set(-1)
+    
 
     def update_label(self, text):
         """Update the label with new text."""
@@ -412,9 +429,8 @@ class GuiApp:
 
 
     def update_label_with_latest_question(self):
-        global lastest_question
         """Update the label with the latest question."""
-        self.update_label(lastest_question)  # Use the global variable
+        self.update_label(self.latest_question)  # Use the global variable
         self.root.after(1000, self.update_label_with_latest_question)  # Continue updating
 
 
@@ -439,7 +455,7 @@ class GuiNode:
         self.gui_app = None
         self.gui_thread = None
         self.question_label = question_label # from commandline, which set of questions to run
-        self.lastest_question = "Waiting for message..."
+        self.latest_question = "Waiting for message..."
 
         # Services to start and stop GUI
         self.start_service = rospy.Service('start_gui', Empty, self.start_gui)
@@ -460,10 +476,10 @@ class GuiNode:
         """Request a question from the service."""
         try:
             response = self.get_question_service(req)
-            self.lastest_question = response.question
-            print(f"New Question: {self.lastest_question}")
+            self.latest_question = response.question
+            print(f"New Question: {self.latest_question}")
             # Update your GUI with the received question
-            self.gui_app.update_label(self.lastest_question)
+            self.gui_app.update_label(self.latest_question)
             return response
         except rospy.ServiceException as e:
             rospy.logerr(f"Service call failed: {e}")
@@ -499,7 +515,7 @@ class GuiNode:
         root = tk.Tk()
         self.gui_app = GuiApp(root, self.get_question_service, self.key_id_service, self.question_label)
         # Ensure the latest question is shown on screen immediately
-        self.gui_app.update_label(self.lastest_question)
+        self.gui_app.update_label(self.latest_question)
         self.gui_app.run()
 
     def run(self):

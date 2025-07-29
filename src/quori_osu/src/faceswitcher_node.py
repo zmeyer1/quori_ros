@@ -7,6 +7,7 @@ import tkinter as tk
 import os
 from itertools import count
 import roslib.packages
+import signal
 
 # Code adapted from https://stackoverflow.com/questions/40619731/display-animated-gif-in-tkinter-python-3-5
 class GifLabel(tk.Label):
@@ -76,12 +77,12 @@ class FaceSwitcher:
         self.root = tk.Tk()
         self.root.configure(bg="black")
         self.root.attributes('-fullscreen', True)  # Fullscreen mode
-        # self.root.bind("f", self.toggle_fullscreen)
+        self.root.bind("f", self.toggle_fullscreen)
         self.root.bind("<Escape>", self.toggle_fullscreen)
-        # self.root.bind("<Escape>", lambda e: self.root.quit())  # Exit on Escape key
+        self.root.bind("m", lambda e: self.root.iconify())  # Minimize on m
         self.root.bind("<Control-c>", lambda e: self.root.quit())
         self.root.attributes('-topmost', True) # keeps it on top permanently
-
+        signal.signal(signal.SIGINT, self.shutdown)  # Catch the shutdown signal
 
 
         # Create a label to display the images
@@ -129,7 +130,15 @@ class FaceSwitcher:
 
     def run(self):
         self.root.mainloop()
+    
+    def shutdown(self, signum, frame):
+        """Handle shutdown signal."""
+        rospy.loginfo("Shutting down face switcher node.")
+        self.root.quit()
+        self.root.destroy()
+        rospy.signal_shutdown("Face switcher node shutdown")
 
 if __name__ == "__main__":
+
     face_switcher = FaceSwitcher()
     face_switcher.run()

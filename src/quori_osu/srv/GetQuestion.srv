@@ -2,6 +2,7 @@
 # If -1 then its the inital question request 
 # If -2 then the wizard remotely updated the question with no user rating 
 int64 rating
+int64 complexity
 ---
 # The response is the next question in the list
 string question
