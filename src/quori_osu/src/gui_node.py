@@ -171,7 +171,7 @@ class GuiApp:
             self.title_label = tk.Label(
                 self.container_frame,
                 text="How would you rate the response time of Quori?",  # This label is now above the buttons
-                font=("Arial", 18),
+                font=("Arial", 22),
                 fg="black",
                 pady=10,
                 bg=LIGHT_BLUE,
@@ -181,7 +181,7 @@ class GuiApp:
             self.title_label = tk.Label(
                 self.container_frame,
                 text="The timing of Quori's response was natural",  # This label is now above the buttons
-                font=("Arial", 18),
+                font=("Arial", 22),
                 fg="black",
                 pady=10,
                 bg=LIGHT_BLUE,
@@ -190,7 +190,7 @@ class GuiApp:
 
         # Upper frame
         self.upper_frame = tk.Frame(self.container_frame, bg=LIGHT_BLUE)
-        self.upper_frame.pack(side=tk.TOP, pady=20)
+        self.upper_frame.pack(side=tk.TOP, pady=0)
 
         width = self.upper_frame.winfo_width()
         height = self.upper_frame.winfo_height()
@@ -239,13 +239,13 @@ class GuiApp:
             self.buttons.append(btn)
 
         self.lower_frame = tk.Frame(self.container_frame, bg=LIGHT_BLUE)
-        self.lower_frame.pack(side=tk.TOP, pady=20)
+        self.lower_frame.pack(side=tk.TOP, pady=50)
 
         # Complexity Score Question
         self.complex_label = tk.Label(
                 self.lower_frame,
-                text="The question asked to Quori was complex",
-                font=("Arial", 18),
+                text="The question you asked Quori was complicated",
+                font=("Arial", 22),
                 fg="black",
                 pady=10,
                 bg=LIGHT_BLUE,
