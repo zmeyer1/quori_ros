@@ -197,7 +197,7 @@ class QandANode:
             return []
 
         # Generate a list of delays that is at least as long as the number of questions
-        full_delays = (delay_times * np.math.ceil(num_questions / len(delay_times)))[:num_questions]   
+        full_delays = (delay_times * np.math.ceil(num_questions / len(delay_times)))[:num_questions]  
         return random.shuffle(full_delays)
     
 
@@ -214,6 +214,7 @@ class QandANode:
 
         # generates en even distribution of delays for the questions
         self.all_delays = self.generate_delays(self.all_questions, self.delay_times)
+        self.all_delays[0] = 0.5  # first question is a demo question
 
         # Log the filtered questions for debugging
         rospy.loginfo(f"Filtered Questions: {self.all_questions}")
