@@ -87,7 +87,9 @@ class GuiApp:
             self.id_entry = tk.Entry(self.id_frame, width=20, font=("Arial", 24))
             self.id_entry.pack(pady=10)
         else:
-            self.UUID = str(int(round(time.time())))
+            self.UUID = str(int(round(time.time())))[4:]
+            self.id_label = tk.Label(self.id_frame, text=f"Participant ID: {self.UUID}", font=("Arial", 24), bg=LIGHT_BLUE)
+            self.id_label.pack(pady=10)
 
         if self.gen_question_key == False:
             if self.question_label is None:

@@ -197,8 +197,10 @@ class QandANode:
             return []
 
         # Generate a list of delays that is at least as long as the number of questions
-        full_delays = (delay_times * np.math.ceil(num_questions / len(delay_times)))[:num_questions]  
-        return random.shuffle(full_delays)
+        full_delays = (delay_times * np.math.ceil(num_questions / len(delay_times)))[:num_questions] 
+        random.shuffle(full_delays)
+
+        return full_delays
     
 
     def initialize_questions_and_answers(self):
@@ -420,11 +422,13 @@ class QandANode:
         else:
             rospy.loginfo("First question requested received.")
 
-        # Update the current delay for the next question # TODO: FIX distibution
-        self.current_delay = random.choice(self.delay_times)
+        
         
         # Check if we have exhausted all questions
         if self.current_text_index < total_questions and len(self.response_list) < total_questions:
+
+            # Update the current delay for the next question 
+            self.current_delay = self.all_delays[self.current_text_index]
 
             question = self.all_questions[self.current_text_index]['question']
 
